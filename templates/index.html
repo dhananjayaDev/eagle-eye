@@ -5,8 +5,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vehicle Detection & Logging</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        #uploadForm {
+            margin: 20px auto;
+            padding: 10px;
+            background: white;
+            display: inline-block;
+            border-radius: 8px;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+        table {
+            width: 80%;
+            margin: 20px auto;
+            border-collapse: collapse;
+            background: white;
+            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        th {
+            background-color: #333;
+            color: white;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .alert {
+            padding: 10px;
+            color: white;
+            background-color: red;
+            display: none;
+            width: 50%;
+            margin: 10px auto;
+            font-weight: bold;
+            border-radius: 5px;
+        }
+        #gps-data {
+            margin: 10px auto;
+            font-size: 18px;
+            font-weight: bold;
+            color: #0066cc;
+        }
+    </style>
 </head>
 <body>
+
     <h1>Upload Video</h1>
     <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
         <input type="file" id="videoFile" name="file" accept="video/*" required>
@@ -14,10 +68,16 @@
     </form>
 
     <h2>Processed Video:</h2>
-    <img id="video_feed" width="720px" style="display: none;"> <!-- Hidden until a video is uploaded -->
+    <img id="video_feed" width="720px" style="display: none;"> <!-- Hidden until video starts -->
+
+    <h2>Real-Time GPS Data</h2>
+    <p id="gps-data">📍 Waiting for GPS Data...</p>
+
+    <h2>🚨 Critical Alerts</h2>
+    <div id="alert" class="alert"></div>
 
     <h2>Real-Time Event Log</h2>
-    <table border="1">
+    <table>
         <thead>
             <tr>
                 <th>ID</th>
@@ -25,7 +85,8 @@
                 <th>Event Type</th>
                 <th>Timestamp</th>
                 <th>Coordinates</th>
-                <th>TTC (s)</th> <!-- ✅ Added TTC column -->
+                <th>TTC (s)</th>
+                <th>GPS Lat, Lon</th>
             </tr>
         </thead>
         <tbody id="event_log"></tbody>
@@ -54,35 +115,49 @@
         });
 
         // ✅ Fetch and update Real-Time Events
-function updateEvents() {
-    $.ajax({
-        url: "/events",
-        type: "GET",
-        dataType: "json",
-        success: function(data) {
-            console.log("Received data:", data);  // ✅ Debug Log
-            $("#event_log").empty();
-            data.forEach(event => {
-                $("#event_log").append(`
-                    <tr>
-                        <td>${event.id}</td>
-                        <td>${event.vehicle_id}</td>
-                        <td>${event.event_type}</td>
-                        <td>${event.timestamp}</td>
-                        <td>[${event.x1}, ${event.y1}, ${event.x2}, ${event.y2}]</td>
-                        <td>${event.ttc !== null ? event.ttc : 'N/A'}</td>
-                    </tr>
-                `);
-            });
-        },
-        error: function(xhr, status, error) {
-            console.error("Error fetching data:", error);  // ✅ Debug Log
-        }
-    });
-}
-setInterval(updateEvents, 2000);
+        function updateEvents() {
+            $.ajax({
+                url: "/events",
+                type: "GET",
+                dataType: "json",
+                success: function(data) {
+                    console.log("Received data:", data);  // Debugging
+                    $("#event_log").empty();
 
+                    data.forEach(event => {
+                        let row = `<tr>
+                            <td>${event.id}</td>
+                            <td>${event.vehicle_id}</td>
+                            <td>${event.event_type}</td>
+                            <td>${event.timestamp}</td>
+                            <td>[${event.x1}, ${event.y1}, ${event.x2}, ${event.y2}]</td>
+                            <td>${event.ttc !== "N/A" ? event.ttc + "s" : 'N/A'}</td>
+                            <td>${event.latitude}, ${event.longitude}</td>
+                        </tr>`;
+
+                        $("#event_log").append(row);
+
+                        // ✅ Display GPS Data in UI
+                        $("#gps-data").text(`📍 GPS: ${event.latitude}, ${event.longitude}`);
+
+                        // ✅ Real-Time Alerts for Critical Events
+                        if (event.event_type === "Near Collision") {
+                            $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                        }
+                        if (event.event_type === "Frontier" && event.ttc < 2) {
+                            $("#alert").text("⚠️ TTC Below Threshold! Possible Impact ⚠️").fadeIn().delay(3000).fadeOut();
+                        }
+                    });
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error fetching data:", error);
+                }
+            });
+        }
+
+        // ✅ Auto-refresh events every 2 seconds
         setInterval(updateEvents, 2000);
     </script>
+
 </body>
 </html>
