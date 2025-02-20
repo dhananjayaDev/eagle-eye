@@ -153,11 +153,11 @@ def process_video(video_path):
                         event_type = "Near Collision"
 
                     cv2.putText(frame, f"TTC: {ttc}s", (x1, y1 - 40),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 1)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 255), 1)
 
                 cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                 cv2.putText(frame, f"ID: {track_id}", (x1, y1 - 25),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
 
                 event = EventLog(vehicle_id=track_id, event_type=event_type,
                                  x1=x1, y1=y1, x2=x2, y2=y2, ttc=ttc,
