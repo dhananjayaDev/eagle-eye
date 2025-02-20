@@ -160,13 +160,27 @@ def process_video(video_path):
     cap.release()
 
 # ✅ Real-Time Events API
+# @app.route("/events", methods=["GET"])
+# def get_events():
+#     events = EventLog.query.order_by(EventLog.timestamp.desc()).limit(10).all()
+#     data = [{"vehicle_id": e.vehicle_id, "event_type": e.event_type,
+#              "timestamp": e.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+#              "x1": e.x1, "y1": e.y1, "x2": e.x2, "y2": e.y2, "ttc": e.ttc} for e in events]
+#     return jsonify(data)
+
 @app.route("/events", methods=["GET"])
 def get_events():
     events = EventLog.query.order_by(EventLog.timestamp.desc()).limit(10).all()
-    data = [{"vehicle_id": e.vehicle_id, "event_type": e.event_type,
-             "timestamp": e.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
-             "x1": e.x1, "y1": e.y1, "x2": e.x2, "y2": e.y2, "ttc": e.ttc} for e in events]
+    data = [{
+        "id": e.id,  # ✅ Ensure ID is included
+        "vehicle_id": e.vehicle_id,
+        "event_type": e.event_type,
+        "timestamp": e.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "x1": e.x1, "y1": e.y1, "x2": e.x2, "y2": e.y2,
+        "ttc": e.ttc if e.ttc is not None else "N/A"
+    } for e in events]
     return jsonify(data)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
