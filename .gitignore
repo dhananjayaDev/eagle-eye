@@ -1,22 +1,40 @@
+# Ignore dataset CSV files
+*.csv
+
+# Ignore database files
+*.db
+*.sqlite
+
+# Ignore log files
+*.log
+logs/
+*.txt
+
 # Ignore virtual environment
 .venv/
-
-# Ignore PyCharm project files
-.idea/
+venv/
+env/
 
 # Ignore compiled Python files
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-# Ignore database files (if not needed)
-*.db
-instance/
-
-# Ignore logs and uploads
-logs/
-uploads/
-uploaded_video.mp4
-
-# Ignore machine learning models if too large
-*.pkl
+# Ignore model weights and large AI files
 *.onnx
 *.trt
+*.pkl
+*.h5
+*.pth
+
+# Ignore uploaded and processed media files
+uploads/
+static/uploads/
+uploaded_video.mp4
+
+# Ignore IDE and system-specific files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
