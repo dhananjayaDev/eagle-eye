@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Detection & Logging</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Upload Video</h1>
+    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">
+        <input type="file" id="videoFile" name="file" accept="video/*" required>
+        <button type="submit">Upload</button>
+    </form>
+
+    <h2>Processed Video:</h2>
+    <img id="video_feed" width="720px" style="display: none;"> <!-- Hide until a video is uploaded -->
+
+    <h2>Real-Time Event Log</h2>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Vehicle ID</th>
+                <th>Event Type</th>
+                <th>Coordinates</th>
+            </tr>
+        </thead>
+        <tbody id="event_log"></tbody>
+    </table>
+
+{#    <h2>Real-Time Anomaly Detection</h2>#}
+{#    <table border="1">#}
+{#        <thead>#}
+{#            <tr>#}
+{#                <th>Timestamp</th>#}
+{#                <th>Vehicle ID</th>#}
+{#                <th>Anomaly Type</th>#}
+{#                <th>GPS Coordinates</th>#}
+{#            </tr>#}
+{#        </thead>#}
+{#        <tbody id="anomaly_log"></tbody>#}
+{#    </table>#}
+
+    <script>
+        // ✅ Handle Video Upload
+        $("#uploadForm").submit(function(event) {
+            event.preventDefault();
+            var formData = new FormData(this);
+
+            $.ajax({
+                url: "/upload",
+                type: "POST",
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                    var filename = response.filename;
+                    $("#video_feed").attr("src", "/video_feed/" + filename).show();  // ✅ Fix filename issue
+                },
+                error: function(xhr) {
+                    alert("Upload failed!");
+                }
+            });
+        });
+
+        // ✅ Update Real-Time Events
+        function updateEvents() {
+            $.getJSON("/events", function(data) {
+                $("#event_log").empty();
+                data.forEach(event => {
+                    $("#event_log").append(`<tr>
+                        <td>${event.timestamp}</td>
+                        <td>${event.vehicle_id}</td>
+                        <td>${event.event_type}</td>
+                        <td>[${event.x1}, ${event.y1}, ${event.x2}, ${event.y2}]</td>
+                    </tr>`);
+                });
+            });
+        }
+        setInterval(updateEvents, 2000);
+
+        // ✅ Update Real-Time Anomalies
+        {#function updateAnomalies() {#}
+        {#    $.getJSON("/anomalies", function(data) {#}
+        {#        $("#anomaly_log").empty();#}
+        {#        data.forEach(anomaly => {#}
+        {#            $("#anomaly_log").append(`<tr>#}
+        {#                <td>${anomaly.timestamp}</td>#}
+        {#                <td>${anomaly.vehicle_id}</td>#}
+        {#                <td>${anomaly.anomaly_type}</td>#}
+        {#                <td>(${anomaly.gps_lat}, ${anomaly.gps_lon})</td>#}
+        {#            </tr>`);#}
+        {#        });#}
+        {#    });#}
+        {#}#}
+        {#setInterval(updateAnomalies, 2000);#}
+    </script>
+</body>
+</html>
