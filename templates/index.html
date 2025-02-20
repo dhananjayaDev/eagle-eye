@@ -116,47 +116,54 @@
 
         // ✅ Fetch and update Real-Time Events
         function updateEvents() {
-            $.ajax({
-                url: "/events",
-                type: "GET",
-                dataType: "json",
-                success: function(data) {
-                    console.log("Received data:", data);  // Debugging
-                    $("#event_log").empty();
+        $.ajax({
+            url: "/events",
+            type: "GET",
+            dataType: "json",
+            success: function(data) {
+                console.log("Received data:", data);  // ✅ Debug Log
+                $("#event_log").empty();
 
-                    data.forEach(event => {
-                        let row = `<tr>
-                            <td>${event.id}</td>
-                            <td>${event.vehicle_id}</td>
-                            <td>${event.event_type}</td>
-                            <td>${event.timestamp}</td>
-                            <td>[${event.x1}, ${event.y1}, ${event.x2}, ${event.y2}]</td>
-                            <td>${event.ttc !== "N/A" ? event.ttc + "s" : 'N/A'}</td>
-                            <td>${event.latitude}, ${event.longitude}</td>
-                        </tr>`;
+                data.forEach(event => {
+                    let rowStyle = ""; // Default row styling
 
-                        $("#event_log").append(row);
+                    // ✅ Apply light red background color for "Frontier" vehicles
+                    if (event.event_type === "Frontier") {
+                        rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"'; // Light red
+                    }
 
-                        // ✅ Display GPS Data in UI
-                        $("#gps-data").text(`📍 GPS: ${event.latitude}, ${event.longitude}`);
+                    let row = `<tr ${rowStyle}>
+                        <td>${event.id}</td>
+                        <td>${event.vehicle_id}</td>
+                        <td>${event.event_type}</td>
+                        <td>${event.timestamp}</td>
+                        <td>[${event.x1}, ${event.y1}, ${event.x2}, ${event.y2}]</td>
+                        <td>${event.ttc !== "N/A" ? event.ttc + "s" : 'N/A'}</td>
+                        <td>${event.latitude}, ${event.longitude}</td>
+                    </tr>`;
 
-                        // ✅ Real-Time Alerts for Critical Events
-                        if (event.event_type === "Near Collision") {
-                            $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
-                        }
-                        if (event.event_type === "Frontier" && event.ttc < 2) {
-                            $("#alert").text("⚠️ TTC Below Threshold! Possible Impact ⚠️").fadeIn().delay(3000).fadeOut();
-                        }
-                    });
-                },
-                error: function(xhr, status, error) {
-                    console.error("Error fetching data:", error);
-                }
-            });
-        }
+                    $("#event_log").append(row);
 
-        // ✅ Auto-refresh events every 2 seconds
-        setInterval(updateEvents, 2000);
+                    // ✅ Update GPS Data Display
+                    $("#gps-data").text(`📍 GPS: ${event.latitude}, ${event.longitude}`);
+
+                    // ✅ Real-Time Alerts for Critical Events
+                    if (event.event_type === "Near Collision") {
+                        $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                    }
+                    if (event.event_type === "Frontier" && event.ttc < 2) {
+                        $("#alert").text("⚠️ TTC Below Threshold! Possible Impact ⚠️").fadeIn().delay(3000).fadeOut();
+                    }
+                });
+            },
+            error: function(xhr, status, error) {
+                console.error("Error fetching data:", error);  // ✅ Debug Log
+            }
+        });
+    }
+
+    // ✅ Fetch new event data every 2 seconds
+    setInterval(updateEvents, 2000);
     </script>
 
 </body>
