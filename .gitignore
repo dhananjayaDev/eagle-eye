@@ -1,0 +1,2 @@
+# prevent the following files from being tracked by git
+vehicle_trajectory_dataset.csv
