@@ -17,7 +17,7 @@ def load_trt_engine(trt_engine_path):
 
 # Test inference
 def test_infer():
-    trt_engine, context = load_trt_engine("yolov8n.trt")
+    trt_engine, context = load_trt_engine("../yolov8n.trt")
 
     # Allocate Memory
     bindings = []
@@ -41,7 +41,7 @@ def test_infer():
             host_outputs.append(host_mem)
 
     # Prepare Input
-    frame = cv2.imread("test_image.jpg")
+    frame = cv2.imread("../test_image.jpg")
     frame_resized = cv2.resize(frame, (640, 640))
     frame_rgb = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2RGB)
     frame_np = np.array(frame_rgb, dtype=np.float32) / 255.0

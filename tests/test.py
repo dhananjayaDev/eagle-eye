@@ -32,7 +32,7 @@ class Anomalies(db.Model):
 
 
 # ✅ Initialize Database and Create Tables
-if not os.path.exists("vehicle_tracking.db"):
+if not os.path.exists("../vehicle_tracking.db"):
     with app.app_context():
         db.create_all()
         print("✅ Database and tables created!")
@@ -40,7 +40,7 @@ if not os.path.exists("vehicle_tracking.db"):
 
 import sqlite3
 
-conn = sqlite3.connect("vehicle_tracking.db")
+conn = sqlite3.connect("../vehicle_tracking.db")
 cursor = conn.cursor()
 
 # Check if tables exist
