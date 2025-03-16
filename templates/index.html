@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vehicle Detection & Analysis Dashboard</title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <style>
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
@@ -193,7 +194,7 @@
             </form>
             <div id="upload-error-message" class="error-message">Error uploading video. Check console for details.</div>
             <h3>Processed Video Feed</h3>
-            <img id="video_feed" alt="Video Feed">
+            <img id="video_feed" alt="Video Feed" onerror="handleVideoError()">
             <h3>Real-Time GPS Data</h3>
             <p id="gps-data">📍 Waiting for GPS Data...</p>
             <h3>🚨 Critical Alerts</h3>
@@ -288,8 +289,17 @@
     </div>
 
     <script>
-        window.eventInterval = null;
-        let sessionStartTime = new Date(); // Track when the session starts
+        const socket = io();
+        let sessionStartTime = new Date();
+
+        socket.on('connect', () => {
+            console.log('Connected to WebSocket server');
+        });
+
+        socket.on('new_event', (event) => {
+            console.log('New event received:', event);
+            updateEventLog(event);
+        });
 
         function openTab(tabName) {
             $('.tab-content').removeClass('active');
@@ -298,14 +308,10 @@
             $('button:contains("' + tabName.replace(/([A-Z])/g, ' $1').trim() + '")').addClass('active');
 
             if (tabName === 'CriticalEventAnalysis') {
-                updateEvents();
-                window.eventInterval = setInterval(updateEvents, 2000);
+                updateEventsManually();
             } else if (tabName === 'BlockchainStore') {
                 fetchExportedFiles();
                 fetchFiles();
-                if (window.eventInterval) clearInterval(window.eventInterval);
-            } else {
-                if (window.eventInterval) clearInterval(window.eventInterval);
             }
         }
 
@@ -321,12 +327,12 @@
                 success: function(response) {
                     if (response.filename) {
                         var filename = response.filename;
-                        $("#video_feed").attr("src", `/video_feed/${filename}?t=${Date.now()}`).show();
-                        console.log("Video feed set to: /video_feed/" + filename);
-                        updateEvents();
-                        window.eventInterval = setInterval(updateEvents, 2000);
+                        var videoUrl = `/video_feed/${filename}?t=${Date.now()}`;
+                        console.log("Setting video feed to:", videoUrl);
+                        $("#video_feed").attr("src", videoUrl).show();
                         $("#upload-error-message").hide();
                     } else {
+                        console.error("Upload failed:", response.error);
                         $("#upload-error-message").text("Upload failed: " + response.error).show();
                     }
                 },
@@ -337,7 +343,65 @@
             });
         });
 
-        function updateEvents() {
+        function handleVideoError() {
+            console.error("Video feed failed to load");
+            $("#upload-error-message").text("Video feed failed to load. Check console for details.").show();
+        }
+
+        function updateEventLog(event) {
+            let rowStyle = "";
+            if (event.event_type && typeof event.event_type === "string" && event.event_type.includes("Frontier")) {
+                rowStyle = 'style="background-color: rgba(0, 255, 0, 0.2);"';
+            }
+            if (event.motion_status === "Collided") {
+                rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"';
+            }
+
+            let ttcDisplay = event.ttc !== "N/A" ? (event.ttc === Infinity ? "N/A" : event.ttc + "s") : "N/A";
+
+            let row = `<tr ${rowStyle}>
+                <td>${event.id || 'N/A'}</td>
+                <td>${event.vehicle_id || 'N/A'}</td>
+                <td>${event.event_type || 'N/A'}</td>
+                <td>${event.timestamp || 'N/A'}</td>
+                <td>[${event.x1 || 0}, ${event.y1 || 0}, ${event.x2 || 0}, ${event.y2 || 0}]</td>
+                <td>${ttcDisplay}</td>
+                <td>${(event.latitude || 'N/A') + ", " + (event.longitude || 'N/A')}</td>
+                <td>${event.motion_status || 'N/A'}</td>
+            </tr>`;
+
+            $("#event_log").prepend(row);
+            $("#gps-data").text(`📍 GPS: ${(event.latitude || 'N/A')}, ${(event.longitude || 'N/A')}`);
+            $("#events-error-message").hide();
+
+            const alertSound = $("#alertSound")[0];
+            const eventTime = new Date(event.timestamp);
+            const isNewEvent = eventTime > sessionStartTime;
+
+            if (isNewEvent) {
+                if (event.event_type === "Near Collision") {
+                    $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                    alertSound.play();
+                } else if (event.event_type && event.event_type.includes("Anomaly")) {
+                    $("#alert").text("⚠️ Anomaly Detected in Frontier Vehicle! ⚠️").fadeIn().delay(3000).fadeOut();
+                    alertSound.play();
+                } else if (event.motion_status === "🚨 Sudden Stop Detected!") {
+                    $("#alert").text("🚨 Sudden Stop Detected! 🚨").fadeIn().delay(3000).fadeOut();
+                    alertSound.play();
+                } else if (event.motion_status === "⚠️ Harsh Braking") {
+                    $("#alert").text("⚠️ Harsh Braking Detected! ⚠️").fadeIn().delay(3000).fadeOut();
+                } else if (event.motion_status === "Collided") {
+                    $("#alert").text("🚨 COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                    alertSound.play();
+                }
+            }
+
+            if ($("#event_log tr").length > 10) {
+                $("#event_log tr:last").remove();
+            }
+        }
+
+        function updateEventsManually() {
             $.ajax({
                 url: "/events",
                 type: "GET",
@@ -352,64 +416,13 @@
                         return;
                     }
 
-                    data.forEach(event => {
-                        let rowStyle = "";
-                        if (event.event_type && typeof event.event_type === "string" && event.event_type.includes("Frontier")) {
-                            rowStyle = 'style="background-color: rgba(0, 255, 0, 0.2);"';
-                        }
-                        if (event.motion_status === "Collided") {
-                            rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"';
-                        }
-
-                        let ttcDisplay = event.ttc !== "N/A" ? (event.ttc === Infinity ? "N/A" : event.ttc + "s") : "N/A";
-
-                        let row = `<tr ${rowStyle}>
-                            <td>${event.id || 'N/A'}</td>
-                            <td>${event.vehicle_id || 'N/A'}</td>
-                            <td>${event.event_type || 'N/A'}</td>
-                            <td>${event.timestamp || 'N/A'}</td>
-                            <td>[${event.x1 || 0}, ${event.y1 || 0}, ${event.x2 || 0}, ${event.y2 || 0}]</td>
-                            <td>${ttcDisplay}</td>
-                            <td>${(event.latitude || 'N/A') + ", " + (event.longitude || 'N/A')}</td>
-                            <td>${event.motion_status || 'N/A'}</td>
-                        </tr>`;
-                        $("#event_log").append(row);
-
-                        $("#gps-data").text(`📍 GPS: ${(event.latitude || 'N/A')}, ${(event.longitude || 'N/A')}`);
-
-                        const alertSound = $("#alertSound")[0];
-                        const eventTime = new Date(event.timestamp);
-                        const isNewEvent = eventTime > sessionStartTime;
-
-                        if (isNewEvent) { // Only play sound for new events
-                            if (event.event_type === "Near Collision") {
-                                $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
-                                alertSound.play();
-                            } else if (event.event_type && event.event_type.includes("Anomaly")) {
-                                $("#alert").text("⚠️ Anomaly Detected in Frontier Vehicle! ⚠️").fadeIn().delay(3000).fadeOut();
-                                alertSound.play();
-                            } else if (event.motion_status === "🚨 Sudden Stop Detected!") {
-                                $("#alert").text("🚨 Sudden Stop Detected! 🚨").fadeIn().delay(3000).fadeOut();
-                                alertSound.play();
-                            } else if (event.motion_status === "⚠️ Harsh Braking") {
-                                $("#alert").text("⚠️ Harsh Braking Detected! ⚠️").fadeIn().delay(3000).fadeOut();
-                            } else if (event.motion_status === "Collided") {
-                                $("#alert").text("🚨 COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
-                                alertSound.play();
-                            }
-                        }
-                    });
+                    data.forEach(event => updateEventLog(event));
                 },
                 error: function(xhr, status, error) {
                     console.error("Error fetching data:", error, "Status:", status, "Response:", xhr.responseText);
                     $("#events-error-message").text("Error loading events: " + error + " (Check console for details)").show();
                 }
             });
-        }
-
-        function updateEventsManually() {
-            console.log("Manual update triggered");
-            updateEvents();
         }
 
         let localFiles = [];
@@ -516,7 +529,7 @@
             }
 
             const formData = new FormData();
-            formData.append("file", new File([], filename)); // Placeholder; actual file content not needed since blockchain handles it
+            formData.append("file", new File([], filename));
 
             fetch('/blockchain/store', {
                 method: 'POST',

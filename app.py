@@ -1,4 +1,5 @@
 from flask import Flask, request, render_template, jsonify, Response, send_file
+from flask_socketio import SocketIO, emit
 import os
 import cv2
 import numpy as np
@@ -14,10 +15,17 @@ import joblib
 import torch
 import io
 import atexit
+import logging
 
 from blockchain import blockchain_bp
 
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'your-secret-key'
+socketio = SocketIO(app, logger=True, engineio_logger=True)
 
 app.register_blueprint(blockchain_bp, url_prefix='/blockchain')
 
@@ -31,7 +39,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-print(f"Using device: {device}")
+logger.info(f"Using device: {device}")
 
 PIXELS_PER_METER = 0.1
 vehicle_history = {}
@@ -43,7 +51,7 @@ class EventLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     vehicle_id = db.Column(db.Integer, nullable=False)
     event_type = db.Column(db.String(50), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     x1 = db.Column(db.Integer)
     y1 = db.Column(db.Integer)
     x2 = db.Column(db.Integer)
@@ -162,27 +170,31 @@ def index():
 @app.route("/upload", methods=["POST"])
 def upload_file():
     if "file" not in request.files:
+        logger.error("No file uploaded")
         return jsonify({"error": "No file uploaded"}), 400
     file = request.files["file"]
     if file.filename == "":
+        logger.error("No selected file")
         return jsonify({"error": "No selected file"}), 400
     file_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
     file.save(file_path)
+    logger.info(f"File uploaded successfully: {file_path}")
     return jsonify({"filename": file.filename})
 
 
 @app.route("/video_feed/<filename>")
 def video_feed(filename):
-    print(f"Streaming video: {filename}")
-    return Response(process_video(os.path.join(app.config["UPLOAD_FOLDER"], filename)),
+    file_path = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+    logger.info(f"Starting video feed for: {file_path}")
+    return Response(process_video(file_path),
                     mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
 def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print(f"Failed to open video: {video_path}")
-        yield b''
+        logger.error(f"Failed to open video: {video_path}")
+        yield b'--frame\r\nContent-Type: image/jpeg\r\n\r\n\r\n'
         return
 
     FPS = cap.get(cv2.CAP_PROP_FPS)
@@ -191,15 +203,17 @@ def process_video(video_path):
     frame_count = 0
     prev_tracks = {}
 
+    logger.info(f"Video opened: FPS={FPS}, FRAME_TIME={FRAME_TIME}")
+
     try:
         with app.app_context():
             while cap.isOpened():
                 success, frame = cap.read()
                 if not success:
-                    print("End of video stream reached.")
+                    logger.info("End of video stream reached")
                     break
                 frame_count += 1
-                print(f"Processing frame {frame_count}")
+                logger.debug(f"Processing frame {frame_count}")
                 if frame_count % 2 == 0:
                     continue
                 frame = cv2.resize(frame, (640, 480))
@@ -370,28 +384,51 @@ def process_video(video_path):
                                      latitude=gps_data["latitude"], longitude=gps_data["longitude"],
                                      motion_status=vehicle_motion)
                     db.session.add(event)
-                    print(
+                    logger.debug(
                         f"Added event: {event.vehicle_id}, {event.event_type}, {event.motion_status}, {event.timestamp}")
+
+                    try:
+                        timestamp_str = event.timestamp.strftime(
+                            "%Y-%m-%d %H:%M:%S") if event.timestamp else datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                        event_data = {
+                            "id": event.id,
+                            "vehicle_id": event.vehicle_id,
+                            "event_type": event_type,
+                            "timestamp": timestamp_str,
+                            "x1": x1, "y1": y1, "x2": x2, "y2": y2,
+                            "ttc": "N/A" if ttc is None or ttc == float('inf') else ttc,
+                            "latitude": gps_data["latitude"],
+                            "longitude": gps_data["longitude"],
+                            "motion_status": vehicle_motion
+                        }
+                        socketio.emit('new_event', event_data)
+                    except Exception as e:
+                        logger.error(f"Failed to emit event: {e}")
+                        continue  # Skip this event but keep processing frames
 
                 if frame_count % 30 == 0:
                     try:
                         db.session.commit()
-                        print(f"Committed {frame_count} frames")
+                        logger.info(f"Committed {frame_count} frames")
                     except Exception as e:
-                        print(f"Commit failed: {e}")
+                        logger.error(f"Commit failed: {e}")
 
-                _, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
-                yield (b"--frame\r\n"
-                       b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
+                success, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
+                if not success:
+                    logger.error(f"Failed to encode frame {frame_count}")
+                    continue
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
             try:
                 db.session.commit()
-                print("Final commit successful")
+                logger.info("Final commit successful")
             except Exception as e:
-                print(f"Final commit failed: {e}")
+                logger.error(f"Final commit failed: {e}")
 
     except Exception as e:
-        print(f"Error in process_video: {e}")
+        logger.error(f"Error in process_video: {e}")
     finally:
         cap.release()
         with app.app_context():
@@ -401,19 +438,19 @@ def process_video(video_path):
 @app.route("/events", methods=["GET"])
 def get_events():
     events = EventLog.query.order_by(EventLog.timestamp.desc()).limit(10).all()
-    print(f"Events retrieved: {len(events)}")
+    logger.info(f"Events retrieved: {len(events)}")
     data = [{
         "id": e.id,
         "vehicle_id": e.vehicle_id,
         "event_type": e.event_type,
-        "timestamp": e.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "timestamp": e.timestamp.strftime("%Y-%m-%d %H:%M:%S") if e.timestamp else "N/A",
         "x1": e.x1, "y1": e.y1, "x2": e.x2, "y2": e.y2,
         "ttc": "N/A" if e.ttc is None or e.ttc == float('inf') else e.ttc,
         "latitude": e.latitude,
         "longitude": e.longitude,
         "motion_status": e.motion_status
     } for e in events]
-    print(f"Data returned: {data}")
+    logger.debug(f"Data returned: {data}")
     return jsonify(data)
 
 
@@ -429,6 +466,7 @@ def export_critical_events():
             critical_events = EventLog.query.filter(EventLog.motion_status.in_(critical_event_types)).all()
 
             if not critical_events:
+                logger.info("No critical events found.")
                 return jsonify({"error": "No critical events found."}), 404
 
             data = []
@@ -438,7 +476,7 @@ def export_critical_events():
                     "Vehicle ID": event.vehicle_id,
                     "Event Type": event.event_type,
                     "Motion Status": event.motion_status,
-                    "Timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    "Timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S") if event.timestamp else "N/A",
                     "X1": event.x1,
                     "Y1": event.y1,
                     "X2": event.x2,
@@ -454,6 +492,7 @@ def export_critical_events():
                 df.to_excel(writer, index=False, sheet_name="Critical Events")
             output.seek(0)
 
+            logger.info("Critical events exported successfully")
             return send_file(
                 output,
                 mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -462,7 +501,7 @@ def export_critical_events():
             )
 
     except Exception as e:
-        print(f"Error exporting critical events: {e}")
+        logger.error(f"Error exporting critical events: {e}")
         return jsonify({"error": "Failed to export critical events."}), 500
 
 
@@ -479,9 +518,10 @@ def list_exported_files():
                     "file_name": filename,
                     "timestamp": int(timestamp * 1000)
                 })
+        logger.info(f"Listed {len(files)} exported files")
         return jsonify({"files": files})
     except Exception as e:
-        print(f"Error listing exported files: {e}")
+        logger.error(f"Error listing exported files: {e}")
         return jsonify({"error": "Failed to list exported files"}), 500
 
 
@@ -491,16 +531,19 @@ def delete_exported_file():
         data = request.get_json()
         filename = data.get("filename")
         if not filename:
+            logger.error("No filename provided")
             return jsonify({"error": "No filename provided"}), 400
 
         file_path = os.path.join(EXPORT_DIR, filename)
         if os.path.exists(file_path) and filename.endswith('.xlsx'):
             os.remove(file_path)
+            logger.info(f"File deleted: {filename}")
             return jsonify({"message": "File deleted successfully"})
         else:
+            logger.error(f"File not found or invalid: {filename}")
             return jsonify({"error": "File not found or invalid"}), 404
     except Exception as e:
-        print(f"Error deleting file: {e}")
+        logger.error(f"Error deleting file: {e}")
         return jsonify({"error": "Failed to delete file"}), 500
 
 
@@ -511,9 +554,10 @@ def clear_exported_files():
             if filename.endswith('.xlsx'):
                 file_path = os.path.join(EXPORT_DIR, filename)
                 os.remove(file_path)
+        logger.info("All exported files cleared")
         return jsonify({"message": "All exported files cleared successfully"})
     except Exception as e:
-        print(f"Error clearing exported files: {e}")
+        logger.error(f"Error clearing exported files: {e}")
         return jsonify({"error": "Failed to clear exported files"}), 500
 
 
@@ -524,7 +568,7 @@ def export_critical_events_on_shutdown():
             critical_events = EventLog.query.filter(EventLog.motion_status.in_(critical_event_types)).all()
 
             if not critical_events:
-                print("No critical events found to export on shutdown.")
+                logger.info("No critical events found to export on shutdown.")
                 return
 
             data = []
@@ -534,7 +578,7 @@ def export_critical_events_on_shutdown():
                     "Vehicle ID": event.vehicle_id,
                     "Event Type": event.event_type,
                     "Motion Status": event.motion_status,
-                    "Timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    "Timestamp": event.timestamp.strftime("%Y-%m-%d %H:%M:%S") if event.timestamp else "N/A",
                     "X1": event.x1,
                     "Y1": event.y1,
                     "X2": event.x2,
@@ -547,13 +591,13 @@ def export_critical_events_on_shutdown():
             df = pd.DataFrame(data)
             filename = os.path.join(EXPORT_DIR, f"critical_events_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx")
             df.to_excel(filename, index=False, sheet_name="Critical Events")
-            print(f"Critical events exported to {filename}")
+            logger.info(f"Critical events exported to {filename}")
 
     except Exception as e:
-        print(f"Error exporting critical events on shutdown: {e}")
+        logger.error(f"Error exporting critical events on shutdown: {e}")
 
 
 atexit.register(export_critical_events_on_shutdown)
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True)
