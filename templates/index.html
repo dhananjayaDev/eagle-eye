@@ -122,7 +122,6 @@
         form {
             margin: 20px 0;
         }
-        /* Blockchain Store Styles */
         .bg-white { background-color: #ffffff; }
         .p-6 { padding: 1.5rem; }
         .rounded-lg { border-radius: 0.5rem; }
@@ -163,6 +162,8 @@
         .hover\:bg-teal-600:hover { background-color: #0d9488; }
         .bg-indigo-500 { background-color: #6366f1; }
         .hover\:bg-indigo-600:hover { background-color: #4f46e5; }
+        .bg-red-500 { background-color: #ef4444; }
+        .hover\:bg-red-600:hover { background-color: #dc2626; }
         .text-white { color: #ffffff; }
         .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
         .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
@@ -225,21 +226,22 @@
 
         <div id="BlockchainStore" class="tab-content">
             <h2>Blockchain Store</h2>
-            <!-- Manual File Upload Section -->
             <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-3xl">
-                <h3 class="text-lg font-semibold mb-4">Upload Your File</h3>
+                <h3 class="text-lg font-semibold mb-4">Upload Your File to Blockchain</h3>
                 <div class="flex flex-col items-center gap-4">
                     <label class="flex items-center gap-2 bg-gray-100 p-3 rounded-lg cursor-pointer hover:bg-gray-200">
                         <span class="text-gray-600">Choose or Drag File</span>
                         <input type="file" id="blockchainFile" class="hidden">
                     </label>
-                    <button class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded" onclick="addToLocalFiles()">Add File</button>
+                    <button class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded" onclick="uploadToBlockchainDirectly()">Upload to Blockchain</button>
                 </div>
             </div>
 
-            <!-- Generated Critical Events Files Section -->
             <h2 class="text-2xl font-semibold mt-10">Generated Critical Events Files</h2>
             <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-3xl mt-4">
+                <div class="flex justify-end mb-4">
+                    <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded" onclick="clearExportedFiles()">Clear All</button>
+                </div>
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-gray-200">
@@ -258,7 +260,6 @@
                 <div id="critical-events-error" class="error-message">Error loading critical events files.</div>
             </div>
 
-            <!-- Stored Files (Blockchain) Section -->
             <h2 class="text-2xl font-semibold mt-10">Stored Files on Blockchain</h2>
             <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-3xl mt-4">
                 <table class="w-full text-left border-collapse">
@@ -287,34 +288,27 @@
     </div>
 
     <script>
-        // Initialize event interval
         window.eventInterval = null;
+        let sessionStartTime = new Date(); // Track when the session starts
 
-        // Tab switching functionality
         function openTab(tabName) {
             $('.tab-content').removeClass('active');
             $('.tab-button').removeClass('active');
             $('#' + tabName).addClass('active');
-            $('.' + tabName + '-button').addClass('active');
+            $('button:contains("' + tabName.replace(/([A-Z])/g, ' $1').trim() + '")').addClass('active');
 
-            // Manage event updates
             if (tabName === 'CriticalEventAnalysis') {
                 updateEvents();
                 window.eventInterval = setInterval(updateEvents, 2000);
             } else if (tabName === 'BlockchainStore') {
-                fetchCriticalEventsFiles();
+                fetchExportedFiles();
                 fetchFiles();
-                if (window.eventInterval) {
-                    clearInterval(window.eventInterval);
-                }
+                if (window.eventInterval) clearInterval(window.eventInterval);
             } else {
-                if (window.eventInterval) {
-                    clearInterval(window.eventInterval);
-                }
+                if (window.eventInterval) clearInterval(window.eventInterval);
             }
         }
 
-        // Handle Video Upload
         $("#uploadForm").submit(function(event) {
             event.preventDefault();
             var formData = new FormData(this);
@@ -343,7 +337,6 @@
             });
         });
 
-        // Fetch and update Real-Time Events
         function updateEvents() {
             $.ajax({
                 url: "/events",
@@ -385,20 +378,25 @@
                         $("#gps-data").text(`📍 GPS: ${(event.latitude || 'N/A')}, ${(event.longitude || 'N/A')}`);
 
                         const alertSound = $("#alertSound")[0];
-                        if (event.event_type === "Near Collision") {
-                            $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
-                            alertSound.play();
-                        } else if (event.event_type && event.event_type.includes("Anomaly")) {
-                            $("#alert").text("⚠️ Anomaly Detected in Frontier Vehicle! ⚠️").fadeIn().delay(3000).fadeOut();
-                            alertSound.play();
-                        } else if (event.motion_status === "🚨 Sudden Stop Detected!") {
-                            $("#alert").text("🚨 Sudden Stop Detected! 🚨").fadeIn().delay(3000).fadeOut();
-                            alertSound.play();
-                        } else if (event.motion_status === "⚠️ Harsh Braking") {
-                            $("#alert").text("⚠️ Harsh Braking Detected! ⚠️").fadeIn().delay(3000).fadeOut();
-                        } else if (event.motion_status === "Collided") {
-                            $("#alert").text("🚨 COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
-                            alertSound.play();
+                        const eventTime = new Date(event.timestamp);
+                        const isNewEvent = eventTime > sessionStartTime;
+
+                        if (isNewEvent) { // Only play sound for new events
+                            if (event.event_type === "Near Collision") {
+                                $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                                alertSound.play();
+                            } else if (event.event_type && event.event_type.includes("Anomaly")) {
+                                $("#alert").text("⚠️ Anomaly Detected in Frontier Vehicle! ⚠️").fadeIn().delay(3000).fadeOut();
+                                alertSound.play();
+                            } else if (event.motion_status === "🚨 Sudden Stop Detected!") {
+                                $("#alert").text("🚨 Sudden Stop Detected! 🚨").fadeIn().delay(3000).fadeOut();
+                                alertSound.play();
+                            } else if (event.motion_status === "⚠️ Harsh Braking") {
+                                $("#alert").text("⚠️ Harsh Braking Detected! ⚠️").fadeIn().delay(3000).fadeOut();
+                            } else if (event.motion_status === "Collided") {
+                                $("#alert").text("🚨 COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                                alertSound.play();
+                            }
                         }
                     });
                 },
@@ -409,76 +407,83 @@
             });
         }
 
-        // Manual update function for testing
         function updateEventsManually() {
             console.log("Manual update triggered");
             updateEvents();
         }
 
-        // Blockchain Store functionality
         let localFiles = [];
         let fileList = [];
 
-        // Add manually uploaded file to local files list
-        function addToLocalFiles() {
+        function uploadToBlockchainDirectly() {
             const fileInput = document.getElementById('blockchainFile');
             const file = fileInput.files[0];
             if (!file) {
-                alert("❌ Please select a file before adding.");
+                alert("❌ Please select a file before uploading.");
                 return;
             }
 
-            // Optional: Add file type or size validation
             const allowedTypes = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'];
             if (!allowedTypes.includes(file.type)) {
                 alert("❌ Invalid file type. Please upload an Excel or CSV file.");
                 return;
             }
 
-            const maxSize = 10 * 1024 * 1024; // 10 MB limit
+            const maxSize = 10 * 1024 * 1024;
             if (file.size > maxSize) {
                 alert("❌ File size exceeds 10 MB limit.");
                 return;
             }
 
-            const timestamp = new Date().getTime();
-            localFiles.push({
-                id: localFiles.length + 1,
-                file: file,
-                file_name: file.name,
-                timestamp: timestamp
-            });
+            const formData = new FormData();
+            formData.append("file", file);
 
-            updateLocalFileList();
-            fileInput.value = ''; // Clear the input
-        }
-
-        // Fetch critical events files
-        function fetchCriticalEventsFiles() {
-            fetch('/export_critical_events')
+            fetch('/blockchain/store', {
+                method: 'POST',
+                body: formData
+            })
             .then(response => response.json())
             .then(data => {
-                if (data.filename) {
-                    const timestamp = new Date().getTime();
-                    localFiles.push({
-                        id: localFiles.length + 1,
-                        file_name: data.filename,
-                        timestamp: timestamp,
-                        isCriticalEvent: true
+                if (data.message) {
+                    alert("✅ File stored successfully on the blockchain!");
+                    fetchFiles();
+                    fileInput.value = '';
+                } else {
+                    alert("❌ Failed to store file: " + (data.error || "Unknown error"));
+                }
+            })
+            .catch(error => {
+                console.error("❌ Store file error:", error);
+                alert("Failed to store file.");
+            });
+        }
+
+        function fetchExportedFiles() {
+            fetch('/list_exported_files')
+            .then(response => response.json())
+            .then(data => {
+                if (data.files) {
+                    localFiles = localFiles.filter(file => file.isManualUpload);
+                    data.files.forEach(file => {
+                        localFiles.push({
+                            id: file.id,
+                            file_name: file.file_name,
+                            timestamp: file.timestamp,
+                            isExported: true
+                        });
                     });
                     updateLocalFileList();
                 } else {
-                    console.error("No critical events file generated:", data.error);
+                    console.error("No exported files received:", data.error);
                     document.getElementById('criticalEventsFileList').innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 p-4">No critical events files available.</td></tr>';
                 }
             })
             .catch(error => {
-                console.error("❌ Fetch Critical Events Error:", error);
+                console.error("❌ Fetch Exported Files Error:", error);
                 document.getElementById('critical-events-error').style.display = 'block';
             });
         }
 
-        // Update local files list (Generated Critical Events Files)
         function updateLocalFileList() {
             const fileListElement = document.getElementById('criticalEventsFileList');
             fileListElement.innerHTML = '';
@@ -493,7 +498,8 @@
                         <td class="p-2 border border-gray-300">${file.file_name}</td>
                         <td class="p-2 border border-gray-300">${new Date(file.timestamp).toLocaleString()}</td>
                         <td class="p-2 border border-gray-300 text-center">
-                            <button class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded" onclick="uploadToBlockchain(${file.id})">Upload to Blockchain</button>
+                            <button class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded mr-2" onclick="uploadExportedToBlockchain('${file.file_name}')">Upload to Blockchain</button>
+                            ${file.isExported ? `<button class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded" onclick="deleteExportedFile('${file.file_name}')">Delete</button>` : ''}
                         </td>
                     `;
                     fileListElement.appendChild(row);
@@ -502,25 +508,15 @@
             document.getElementById('critical-events-error').style.display = 'none';
         }
 
-        // Upload file to blockchain
-        function uploadToBlockchain(fileId) {
-            const fileEntry = localFiles.find(f => f.id === fileId);
-            if (!fileEntry) {
-                alert("❌ File not found.");
+        function uploadExportedToBlockchain(filename) {
+            const fileEntry = localFiles.find(f => f.file_name === filename);
+            if (!fileEntry || !fileEntry.isExported) {
+                alert("❌ File not found or not an exported file.");
                 return;
             }
 
             const formData = new FormData();
-            if (fileEntry.file) {
-                // Manually uploaded file
-                formData.append("file", fileEntry.file);
-            } else if (fileEntry.isCriticalEvent) {
-                // Critical events file
-                formData.append("filename", fileEntry.file_name);
-            } else {
-                alert("❌ File data not available.");
-                return;
-            }
+            formData.append("file", new File([], filename)); // Placeholder; actual file content not needed since blockchain handles it
 
             fetch('/blockchain/store', {
                 method: 'POST',
@@ -530,8 +526,7 @@
             .then(data => {
                 if (data.message) {
                     alert("✅ File stored successfully on the blockchain!");
-                    // Remove from local files and update both lists
-                    localFiles = localFiles.filter(f => f.id !== fileId);
+                    localFiles = localFiles.filter(f => f.file_name !== filename);
                     updateLocalFileList();
                     fetchFiles();
                 } else {
@@ -544,7 +539,57 @@
             });
         }
 
-        // Fetch blockchain files
+        function deleteExportedFile(filename) {
+            if (!confirm(`Are you sure you want to delete ${filename}?`)) return;
+
+            fetch('/delete_exported_file', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ filename: filename })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert("✅ File deleted successfully!");
+                    localFiles = localFiles.filter(f => f.file_name !== filename);
+                    updateLocalFileList();
+                } else {
+                    alert("❌ Failed to delete file: " + (data.error || "Unknown error"));
+                }
+            })
+            .catch(error => {
+                console.error("❌ Delete file error:", error);
+                alert("Failed to delete file.");
+            });
+        }
+
+        function clearExportedFiles() {
+            if (!confirm("Are you sure you want to clear all exported files?")) return;
+
+            fetch('/clear_exported_files', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert("✅ All exported files cleared successfully!");
+                    localFiles = localFiles.filter(f => f.isManualUpload);
+                    updateLocalFileList();
+                } else {
+                    alert("❌ Failed to clear files: " + (data.error || "Unknown error"));
+                }
+            })
+            .catch(error => {
+                console.error("❌ Clear files error:", error);
+                alert("Failed to clear files.");
+            });
+        }
+
         function fetchFiles() {
             fetch('/blockchain/list')
             .then(response => response.json())
@@ -559,7 +604,6 @@
             });
         }
 
-        // Retrieve file from blockchain
         function retrieveFile(fileId) {
             fetch(`/blockchain/retrieve/${fileId}`)
             .then(response => {
@@ -584,7 +628,6 @@
             });
         }
 
-        // Update blockchain file list
         function updateFileList() {
             const fileListElement = document.getElementById('blockchainFileList');
             fileListElement.innerHTML = '';
@@ -608,7 +651,6 @@
             document.getElementById('blockchain-error').style.display = 'none';
         }
 
-        // Initialize with Live Streaming tab active
         $(document).ready(function() {
             openTab('LiveStreaming');
         });

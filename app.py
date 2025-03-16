@@ -15,28 +15,29 @@ import torch
 import io
 import atexit
 
-from blockchain import blockchain_bp  # Import the new blueprint
+from blockchain import blockchain_bp
 
 app = Flask(__name__)
 
-# Register the blockchain blueprint
 app.register_blueprint(blockchain_bp, url_prefix='/blockchain')
 
 UPLOAD_FOLDER = "uploads"
+EXPORT_DIR = "exports"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(EXPORT_DIR, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///events.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 db = SQLAlchemy(app)
 
-# Use torch.cuda.is_available() instead of is_connected
 device = "cuda" if torch.cuda.is_available() else "cpu"
 print(f"Using device: {device}")
 
-PIXELS_PER_METER = 0.1  # Placeholder; calibrate later
+PIXELS_PER_METER = 0.1
 vehicle_history = {}
-collided_vehicles = set()  # Track vehicles involved in collisions
-collision_cooldown = {}  # Track cooldown for highlighting (frame-based)
+collided_vehicles = set()
+collision_cooldown = {}
+
 
 class EventLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -52,20 +53,23 @@ class EventLog(db.Model):
     longitude = db.Column(db.Float, nullable=True)
     motion_status = db.Column(db.String(50), nullable=True)
 
+
 with app.app_context():
     db.create_all()
 
-model = YOLO("yolov8n.pt").to(device)  # Can switch to yolov8s.pt for lighter model if needed
+model = YOLO("yolov8n.pt").to(device)
 tracker = Sort()
 kalman_tracker = VehicleTracker()
 anomaly_model = joblib.load("frontier_anomaly_model.pkl")
 scaler = joblib.load("scaler.pkl")
+
 
 def calculate_ttc(ego_speed, frontier_speed, distance):
     if frontier_speed <= ego_speed or distance <= 0:
         return float('inf')
     relative_speed = (ego_speed - frontier_speed) / 3.6
     return round(distance / relative_speed, 2) if relative_speed > 0 else float('inf')
+
 
 def estimate_frontier_speed(track_id, y_center, frame_count, frame_time):
     if track_id not in vehicle_history:
@@ -86,6 +90,7 @@ def estimate_frontier_speed(track_id, y_center, frame_count, frame_time):
     vehicle_history[track_id]["last_y"] = y_center
     vehicle_history[track_id]["last_frame"] = frame_count
     return vehicle_history[track_id]["speed"]
+
 
 def detect_lanes(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -112,6 +117,7 @@ def detect_lanes(frame):
             lane_lines.append((x1, y1, x2, y2))
     return lane_lines
 
+
 def get_ego_lane_bounds(lane_lines, width, height):
     if not lane_lines:
         return 0, width
@@ -133,6 +139,7 @@ def get_ego_lane_bounds(lane_lines, width, height):
         right_lane_x = min(width, max(right_lines) + 50)
     return int(left_lane_x), int(right_lane_x)
 
+
 def calculate_iou(box1, box2):
     x1, y1, x2, y2 = box1
     x1_other, y1_other, x2_other, y2_other = box2
@@ -146,9 +153,11 @@ def calculate_iou(box1, box2):
     union_area = box1_area + box2_area - inter_area
     return inter_area / union_area if union_area > 0 else 0
 
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
 
 @app.route("/upload", methods=["POST"])
 def upload_file():
@@ -161,11 +170,13 @@ def upload_file():
     file.save(file_path)
     return jsonify({"filename": file.filename})
 
+
 @app.route("/video_feed/<filename>")
 def video_feed(filename):
     print(f"Streaming video: {filename}")
     return Response(process_video(os.path.join(app.config["UPLOAD_FOLDER"], filename)),
                     mimetype="multipart/x-mixed-replace; boundary=frame")
+
 
 def process_video(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -174,7 +185,7 @@ def process_video(video_path):
         yield b''
         return
 
-    FPS = cap.get(cv2.CAP_PROP_FPS)  # Use actual FPS from video
+    FPS = cap.get(cv2.CAP_PROP_FPS)
     FRAME_TIME = 1 / FPS
     prev_frame = None
     frame_count = 0
@@ -189,10 +200,9 @@ def process_video(video_path):
                     break
                 frame_count += 1
                 print(f"Processing frame {frame_count}")
-                # Skip every 2nd frame to reduce load
                 if frame_count % 2 == 0:
                     continue
-                frame = cv2.resize(frame, (640, 480))  # Maintain higher resolution
+                frame = cv2.resize(frame, (640, 480))
                 height, width, _ = frame.shape
                 center_x = width // 2
 
@@ -203,35 +213,34 @@ def process_video(video_path):
 
                 gps_data = get_gps_data()
                 ego_speed = gps_data["speed"]
-                motion_status = detect_motion_changes(prev_frame, frame) if prev_frame is not None else "✅ Normal Motion"
+                motion_status = detect_motion_changes(prev_frame,
+                                                      frame) if prev_frame is not None else "✅ Normal Motion"
                 prev_frame = frame.copy()
                 results = model(frame)[0]
                 detections = []
                 for box in results.boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     class_id = int(box.cls[0])
-                    if class_id in [2, 3, 5, 7]:  # Car, motorcycle, bus, truck
+                    if class_id in [2, 3, 5, 7]:
                         detections.append([x1, y1, x2, y2])
                 tracked_objects = tracker.update(np.array(detections) if detections else np.empty((0, 4)))
                 frontier_vehicle = None
                 min_y = height
-                # Prioritize closest vehicle in ego lane
                 for track in tracked_objects:
                     if len(track) < 5:
                         continue
                     x1, y1, x2, y2, track_id = map(int, track)
                     obj_center_x = (x1 + x2) // 2
                     obj_center_y = y2
-                    # Check if vehicle is in ego lane and closer than current min_y
                     if (left_lane_x <= obj_center_x <= right_lane_x and obj_center_y < min_y):
                         min_y = obj_center_y
                         frontier_vehicle = track
 
                 font = cv2.FONT_HERSHEY_SIMPLEX
-                font_scale = 0.3  # Reduced font size for smaller labels
-                thickness = 1     # Reduced thickness for thinner outline
-                padding = 3       # Reduced padding for compactness
-                label_spacing = 15  # Reduced spacing between labels
+                font_scale = 0.3
+                thickness = 1
+                padding = 3
+                label_spacing = 15
 
                 for track in tracked_objects:
                     if len(track) < 5:
@@ -247,7 +256,8 @@ def process_video(video_path):
                         y_center = (y1 + y2) // 2
                         frontier_speed = estimate_frontier_speed(track_id, y_center, frame_count, FRAME_TIME)
                         distance = height - y2
-                        ttc = calculate_ttc(ego_speed, frontier_speed, distance) if frontier_speed and ego_speed else float('inf')
+                        ttc = calculate_ttc(ego_speed, frontier_speed,
+                                            distance) if frontier_speed and ego_speed else float('inf')
                         if ttc < 2:
                             event_type = "Near Collision"
                         x_center = (x1 + x2) // 2
@@ -262,7 +272,8 @@ def process_video(video_path):
                         current_pos = (x_center, y_center)
                         if track_id in prev_tracks:
                             prev_pos = prev_tracks[track_id]
-                            dist_moved = ((current_pos[0] - prev_pos[0]) ** 2 + (current_pos[1] - prev_pos[1]) ** 2) ** 0.5
+                            dist_moved = ((current_pos[0] - prev_pos[0]) ** 2 + (
+                                        current_pos[1] - prev_pos[1]) ** 2) ** 0.5
                             speed_px_per_frame = dist_moved / FRAME_TIME
                             if speed_px_per_frame < 0.5:
                                 vehicle_motion = "🚨 Sudden Stop Detected!"
@@ -282,13 +293,13 @@ def process_video(video_path):
                                     collided_vehicles.add(other_id)
                                     collision_cooldown[other_id] = frame_count + (5 * FPS)
 
-                        if is_collision and vehicle_motion not in ["Collided", "🚨 Sudden Stop Detected!", "⚠️ Harsh Braking"]:
+                        if is_collision and vehicle_motion not in ["Collided", "🚨 Sudden Stop Detected!",
+                                                                   "⚠️ Harsh Braking"]:
                             vehicle_motion = "Collided"
                             collided_vehicles.add(track_id)
                             collision_cooldown[track_id] = frame_count + (5 * FPS)
 
-                        # Define all labels and calculate their sizes
-                        motion_text = vehicle_motion  # Remove "Motion: " prefix, show only status
+                        motion_text = vehicle_motion
                         motion_size, _ = cv2.getTextSize(motion_text, font, font_scale, thickness)
                         motion_width, motion_height = motion_size
 
@@ -304,16 +315,13 @@ def process_video(video_path):
                         id_size, _ = cv2.getTextSize(id_text, font, font_scale, thickness)
                         id_width, id_height = id_size
 
-                        # Determine the maximum width for consistent background rectangles
                         max_width = max(motion_width, speed_width, ttc_width, id_width)
 
-                        # Define positions for each label, spaced vertically
                         motion_pos = (x1, y1 - 80)
                         speed_pos = (x1, y1 - 80 + label_spacing)
                         ttc_pos = (x1, y1 - 80 + 2 * label_spacing)
                         id_pos = (x1, y1 - 80 + 3 * label_spacing)
 
-                        # Define background positions with padding
                         motion_bg_pos1 = (x1 - padding, motion_pos[1] - motion_height - padding)
                         motion_bg_pos2 = (x1 + max_width + padding, motion_pos[1] + padding)
 
@@ -326,12 +334,10 @@ def process_video(video_path):
                         id_bg_pos1 = (x1 - padding, id_pos[1] - id_height - padding)
                         id_bg_pos2 = (x1 + max_width + padding, id_pos[1] + padding)
 
-                        # Use red background for critical events, otherwise black
                         is_critical = vehicle_motion in ["Collided", "⚠️ Harsh Braking", "🚨 Sudden Stop Detected!"]
-                        bg_color = (0, 0, 255) if is_critical else (0, 0, 0)  # Red for critical, black otherwise
-                        alpha = 0.6  # Transparency for all backgrounds
+                        bg_color = (0, 0, 255) if is_critical else (0, 0, 0)
+                        alpha = 0.6
 
-                        # Draw semi-transparent backgrounds for all labels
                         overlay = frame.copy()
                         cv2.rectangle(overlay, motion_bg_pos1, motion_bg_pos2, bg_color, -1)
                         cv2.rectangle(overlay, speed_bg_pos1, speed_bg_pos2, bg_color, -1)
@@ -339,7 +345,6 @@ def process_video(video_path):
                         cv2.rectangle(overlay, id_bg_pos1, id_bg_pos2, bg_color, -1)
                         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
-                        # Draw text with black outline and white fill for all labels
                         cv2.putText(frame, motion_text, motion_pos, font, font_scale, (0, 0, 0), thickness + 1)
                         cv2.putText(frame, motion_text, motion_pos, font, font_scale, (255, 255, 255), thickness)
 
@@ -361,13 +366,13 @@ def process_video(video_path):
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
                     event = EventLog(vehicle_id=track_id, event_type=event_type,
-                                    x1=x1, y1=y1, x2=x2, y2=y2, ttc=ttc,
-                                    latitude=gps_data["latitude"], longitude=gps_data["longitude"],
-                                    motion_status=vehicle_motion)
+                                     x1=x1, y1=y1, x2=x2, y2=y2, ttc=ttc,
+                                     latitude=gps_data["latitude"], longitude=gps_data["longitude"],
+                                     motion_status=vehicle_motion)
                     db.session.add(event)
-                    print(f"Added event: {event.vehicle_id}, {event.event_type}, {event.motion_status}, {event.timestamp}")
+                    print(
+                        f"Added event: {event.vehicle_id}, {event.event_type}, {event.motion_status}, {event.timestamp}")
 
-                # Commit every 30 frames to reduce database load
                 if frame_count % 30 == 0:
                     try:
                         db.session.commit()
@@ -375,12 +380,10 @@ def process_video(video_path):
                     except Exception as e:
                         print(f"Commit failed: {e}")
 
-                # Encode with higher quality
                 _, buffer = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
                 yield (b"--frame\r\n"
-                      b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
+                       b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
 
-            # Final commit
             try:
                 db.session.commit()
                 print("Final commit successful")
@@ -392,7 +395,8 @@ def process_video(video_path):
     finally:
         cap.release()
         with app.app_context():
-            db.session.remove()  # Clean up database session
+            db.session.remove()
+
 
 @app.route("/events", methods=["GET"])
 def get_events():
@@ -412,24 +416,21 @@ def get_events():
     print(f"Data returned: {data}")
     return jsonify(data)
 
+
 @app.route("/export_critical_events", methods=["GET"])
 def export_critical_events():
     try:
         with app.app_context():
-            # Define critical event types based on motion_status
             critical_event_types = [
                 "Collided",
                 "⚠️ Harsh Braking",
                 "🚨 Sudden Stop Detected!"
             ]
-
-            # Query the database for critical events
             critical_events = EventLog.query.filter(EventLog.motion_status.in_(critical_event_types)).all()
 
             if not critical_events:
                 return jsonify({"error": "No critical events found."}), 404
 
-            # Prepare data for Excel
             data = []
             for event in critical_events:
                 data.append({
@@ -447,16 +448,12 @@ def export_critical_events():
                     "Longitude": event.longitude
                 })
 
-            # Convert to DataFrame
             df = pd.DataFrame(data)
-
-            # Create an in-memory Excel file
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df.to_excel(writer, index=False, sheet_name="Critical Events")
             output.seek(0)
 
-            # Send the file as a downloadable attachment
             return send_file(
                 output,
                 mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -468,9 +465,57 @@ def export_critical_events():
         print(f"Error exporting critical events: {e}")
         return jsonify({"error": "Failed to export critical events."}), 500
 
-# Directory to save the exported Excel file on shutdown
-EXPORT_DIR = "exports"
-os.makedirs(EXPORT_DIR, exist_ok=True)
+
+@app.route("/list_exported_files", methods=["GET"])
+def list_exported_files():
+    try:
+        files = []
+        for idx, filename in enumerate(os.listdir(EXPORT_DIR)):
+            if filename.endswith('.xlsx'):
+                file_path = os.path.join(EXPORT_DIR, filename)
+                timestamp = os.path.getmtime(file_path)
+                files.append({
+                    "id": idx + 1,
+                    "file_name": filename,
+                    "timestamp": int(timestamp * 1000)
+                })
+        return jsonify({"files": files})
+    except Exception as e:
+        print(f"Error listing exported files: {e}")
+        return jsonify({"error": "Failed to list exported files"}), 500
+
+
+@app.route("/delete_exported_file", methods=["POST"])
+def delete_exported_file():
+    try:
+        data = request.get_json()
+        filename = data.get("filename")
+        if not filename:
+            return jsonify({"error": "No filename provided"}), 400
+
+        file_path = os.path.join(EXPORT_DIR, filename)
+        if os.path.exists(file_path) and filename.endswith('.xlsx'):
+            os.remove(file_path)
+            return jsonify({"message": "File deleted successfully"})
+        else:
+            return jsonify({"error": "File not found or invalid"}), 404
+    except Exception as e:
+        print(f"Error deleting file: {e}")
+        return jsonify({"error": "Failed to delete file"}), 500
+
+
+@app.route("/clear_exported_files", methods=["POST"])
+def clear_exported_files():
+    try:
+        for filename in os.listdir(EXPORT_DIR):
+            if filename.endswith('.xlsx'):
+                file_path = os.path.join(EXPORT_DIR, filename)
+                os.remove(file_path)
+        return jsonify({"message": "All exported files cleared successfully"})
+    except Exception as e:
+        print(f"Error clearing exported files: {e}")
+        return jsonify({"error": "Failed to clear exported files"}), 500
+
 
 def export_critical_events_on_shutdown():
     try:
@@ -507,7 +552,7 @@ def export_critical_events_on_shutdown():
     except Exception as e:
         print(f"Error exporting critical events on shutdown: {e}")
 
-# Register the shutdown function
+
 atexit.register(export_critical_events_on_shutdown)
 
 if __name__ == "__main__":
