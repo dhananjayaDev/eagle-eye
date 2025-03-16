@@ -1,3 +1,410 @@
+{#<!DOCTYPE html>#}
+{#<html lang="en">#}
+{#<head>#}
+{#    <meta charset="UTF-8">#}
+{#    <meta name="viewport" content="width=device-width, initial-scale=1.0">#}
+{#    <title>Vehicle Detection & Logging</title>#}
+{#    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>#}
+{#    <style>#}
+{#        body {#}
+{#            font-family: Arial, sans-serif;#}
+{#            text-align: center;#}
+{#            background-color: #f4f4f4;#}
+{#        }#}
+{#        h1, h2 {#}
+{#            color: #333;#}
+{#        }#}
+{#        #uploadForm {#}
+{#            margin: 20px auto;#}
+{#            padding: 10px;#}
+{#            background: white;#}
+{#            display: inline-block;#}
+{#            border-radius: 8px;#}
+{#            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);#}
+{#        }#}
+{#        table {#}
+{#            width: 80%;#}
+{#            margin: 20px auto;#}
+{#            border-collapse: collapse;#}
+{#            background: white;#}
+{#            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);#}
+{#        }#}
+{#        th, td {#}
+{#            padding: 10px;#}
+{#            border: 1px solid #ddd;#}
+{#            text-align: center;#}
+{#        }#}
+{#        th {#}
+{#            background-color: #333;#}
+{#            color: white;#}
+{#        }#}
+{#        tr:nth-child(even) {#}
+{#            background-color: #f9f9f9;#}
+{#        }#}
+{#        .alert {#}
+{#            padding: 10px;#}
+{#            color: white;#}
+{#            background-color: red;#}
+{#            display: none;#}
+{#            width: 50%;#}
+{#            margin: 10px auto;#}
+{#            font-weight: bold;#}
+{#            border-radius: 5px;#}
+{#        }#}
+{#        #gps-data {#}
+{#            margin: 10px auto;#}
+{#            font-size: 18px;#}
+{#            font-weight: bold;#}
+{#            color: #0066cc;#}
+{#        }#}
+{#    </style>#}
+{#</head>#}
+{#<body>#}
+{##}
+{#    <h1>Upload Video</h1>#}
+{#    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">#}
+{#        <input type="file" id="videoFile" name="file" accept="video/*" required>#}
+{#        <button type="submit">Upload</button>#}
+{#    </form>#}
+{##}
+{#    <h2>Processed Video:</h2>#}
+{#    <img id="video_feed" width="720px" style="display: none;"> <!-- Hidden until video starts -->#}
+{##}
+{#    <h2>Real-Time GPS Data</h2>#}
+{#    <p id="gps-data">📍 Waiting for GPS Data...</p>#}
+{##}
+{#    <h2>🚨 Critical Alerts</h2>#}
+{#    <div id="alert" class="alert"></div>#}
+{##}
+{#    <h2>Real-Time Event Log</h2>#}
+{#    <table>#}
+{#        <thead>#}
+{#            <tr>#}
+{#                <th>ID</th>#}
+{#                <th>Vehicle ID</th>#}
+{#                <th>Event Type</th>#}
+{#                <th>Timestamp</th>#}
+{#                <th>Coordinates</th>#}
+{#                <th>TTC (s)</th>#}
+{#                <th>GPS Lat, Lon</th>#}
+{#            </tr>#}
+{#        </thead>#}
+{#        <tbody id="event_log"></tbody>#}
+{#    </table>#}
+{##}
+{#    <script>#}
+{#        // ✅ Handle Video Upload#}
+{#        $("#uploadForm").submit(function(event) {#}
+{#            event.preventDefault();#}
+{#            var formData = new FormData(this);#}
+{##}
+{#            $.ajax({#}
+{#                url: "/upload",#}
+{#                type: "POST",#}
+{#                data: formData,#}
+{#                processData: false,#}
+{#                contentType: false,#}
+{#                success: function(response) {#}
+{#                    var filename = response.filename;#}
+{#                    $("#video_feed").attr("src", "/video_feed/" + filename).show();#}
+{#                },#}
+{#                error: function(xhr) {#}
+{#                    alert("Upload failed!");#}
+{#                }#}
+{#            });#}
+{#        });#}
+{##}
+{#        // ✅ Fetch and update Real-Time Events#}
+{#        function updateEvents() {#}
+{#        $.ajax({#}
+{#            url: "/events",#}
+{#            type: "GET",#}
+{#            dataType: "json",#}
+{#            success: function(data) {#}
+{#                console.log("Received data:", data);  // ✅ Debug Log#}
+{#                $("#event_log").empty();#}
+{##}
+{#                data.forEach(event => {#}
+{#                    let rowStyle = ""; // Default row styling#}
+{##}
+{#                    // ✅ Apply light red background color for "Frontier" vehicles#}
+{#                    if (event.event_type === "Frontier") {#}
+{#                        rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"'; // Light red#}
+{#                    }#}
+{##}
+{#                    let row = `<tr ${rowStyle}>#}
+{#                        <td>${event.id}</td>#}
+{#                        <td>${event.vehicle_id}</td>#}
+{#                        <td>${event.event_type}</td>#}
+{#                        <td>${event.timestamp}</td>#}
+{#                        <td>[${event.x1}, ${event.y1}, ${event.x2}, ${event.y2}]</td>#}
+{#                        <td>${event.ttc !== "N/A" ? event.ttc + "s" : 'N/A'}</td>#}
+{#                        <td>${event.latitude}, ${event.longitude}</td>#}
+{#                    </tr>`;#}
+{##}
+{#                    $("#event_log").append(row);#}
+{##}
+{#                    // ✅ Update GPS Data Display#}
+{#                    $("#gps-data").text(`📍 GPS: ${event.latitude}, ${event.longitude}`);#}
+{##}
+{#                    // ✅ Real-Time Alerts for Critical Events#}
+{#                    if (event.event_type === "Near Collision") {#}
+{#                        $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();#}
+{#                    }#}
+{#                    if (event.event_type === "Frontier" && event.ttc < 2) {#}
+{#                        $("#alert").text("⚠️ TTC Below Threshold! Possible Impact ⚠️").fadeIn().delay(3000).fadeOut();#}
+{#                    }#}
+{#                });#}
+{#            },#}
+{#            error: function(xhr, status, error) {#}
+{#                console.error("Error fetching data:", error);  // ✅ Debug Log#}
+{#            }#}
+{#        });#}
+{#    }#}
+{##}
+{#    // ✅ Fetch new event data every 2 seconds#}
+{#    setInterval(updateEvents, 2000);#}
+{#    </script>#}
+{##}
+{#</body>#}
+{#</html>#}
+
+{##}
+{#<!DOCTYPE html>#}
+{#<html lang="en">#}
+{#<head>#}
+{#    <meta charset="UTF-8">#}
+{#    <meta name="viewport" content="width=device-width, initial-scale=1.0">#}
+{#    <title>Vehicle Detection & Logging</title>#}
+{#    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>#}
+{#    <style>#}
+{#        body {#}
+{#            font-family: Arial, sans-serif;#}
+{#            text-align: center;#}
+{#            background-color: #f4f4f4;#}
+{#            margin: 0;#}
+{#            padding: 20px;#}
+{#        }#}
+{#        h1, h2 {#}
+{#            color: #333;#}
+{#        }#}
+{#        #uploadForm {#}
+{#            margin: 20px auto;#}
+{#            padding: 15px;#}
+{#            background: white;#}
+{#            display: inline-block;#}
+{#            border-radius: 8px;#}
+{#            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);#}
+{#        }#}
+{#        #video_feed {#}
+{#            max-width: 100%;#}
+{#            width: 640px;  /* Scaled up */#}
+{#            height: 384px; /* Matches aspect ratio */#}
+{#            display: none;#}
+{#            margin: 10px auto;#}
+{#            border: 2px solid #333;#}
+{#            border-radius: 5px;#}
+{#        }#}
+{#        table {#}
+{#            width: 90%;#}
+{#            max-width: 1200px;#}
+{#            margin: 20px auto;#}
+{#            border-collapse: collapse;#}
+{#            background: white;#}
+{#            box-shadow: 0px 0px 10px rgba(0,0,0,0.1);#}
+{#        }#}
+{#        th, td {#}
+{#            padding: 12px;#}
+{#            border: 1px solid #ddd;#}
+{#            text-align: center;#}
+{#            font-size: 14px;#}
+{#        }#}
+{#        th {#}
+{#            background-color: #333;#}
+{#            color: white;#}
+{#        }#}
+{#        tr:nth-child(even) {#}
+{#            background-color: #f9f9f9;#}
+{#        }#}
+{#        tr:hover {#}
+{#            background-color: #f1f1f1;#}
+{#        }#}
+{#        .alert {#}
+{#            padding: 10px;#}
+{#            color: white;#}
+{#            background-color: red;#}
+{#            display: none;#}
+{#            width: 50%;#}
+{#            margin: 10px auto;#}
+{#            font-weight: bold;#}
+{#            border-radius: 5px;#}
+{#        }#}
+{#        #gps-data {#}
+{#            margin: 10px auto;#}
+{#            font-size: 18px;#}
+{#            font-weight: bold;#}
+{#            color: #0066cc;#}
+{#        }#}
+{#        #error-message {#}
+{#            color: red;#}
+{#            display: none;#}
+{#            margin: 10px auto;#}
+{#            font-weight: bold;#}
+{#        }#}
+{#        #update-button {#}
+{#            margin: 10px auto;#}
+{#            padding: 5px 10px;#}
+{#            background-color: #333;#}
+{#            color: white;#}
+{#            border: none;#}
+{#            border-radius: 5px;#}
+{#            cursor: pointer;#}
+{#        }#}
+{#        #update-button:hover {#}
+{#            background-color: #555;#}
+{#        }#}
+{#    </style>#}
+{#</head>#}
+{#<body>#}
+{##}
+{#    <h1>Upload Video</h1>#}
+{#    <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">#}
+{#        <input type="file" id="videoFile" name="file" accept="video/*" required>#}
+{#        <button type="submit">Upload</button>#}
+{#    </form>#}
+{##}
+{#    <h2>Processed Video:</h2>#}
+{#    <img id="video_feed" alt="Video Feed">#}
+{##}
+{#    <h2>Real-Time GPS Data</h2>#}
+{#    <p id="gps-data">📍 Waiting for GPS Data...</p>#}
+{##}
+{#    <h2>🚨 Critical Alerts</h2>#}
+{#    <div id="alert" class="alert"></div>#}
+{#    <audio id="alertSound" src="https://www.soundjay.com/buttons/beep-01a.mp3" preload="auto"></audio>#}
+{##}
+{#    <h2>Real-Time Event Log</h2>#}
+{#    <table>#}
+{#        <thead>#}
+{#            <tr>#}
+{#                <th>ID</th>#}
+{#                <th>Vehicle ID</th>#}
+{#                <th>Event Type</th>#}
+{#                <th>Timestamp</th>#}
+{#                <th>Coordinates</th>#}
+{#                <th>TTC (s)</th>#}
+{#                <th>GPS Lat, Lon</th>#}
+{#                <th>Motion Status</th>#}
+{#            </tr>#}
+{#        </thead>#}
+{#        <tbody id="event_log"></tbody>#}
+{#    </table>#}
+{#    <div id="error-message">Error loading events. Check console for details.</div>#}
+{#    <button id="update-button" onclick="updateEventsManually()">Update Table Now</button>#}
+{##}
+{#<script>#}
+{#    // Handle Video Upload#}
+{#    $("#uploadForm").submit(function(event) {#}
+{#        event.preventDefault();#}
+{#        var formData = new FormData(this);#}
+{#        $.ajax({#}
+{#            url: "/upload",#}
+{#            type: "POST",#}
+{#            data: formData,#}
+{#            processData: false,#}
+{#            contentType: false,#}
+{#            success: function(response) {#}
+{#                if (response.filename) {#}
+{#                    var filename = response.filename;#}
+{#                    $("#video_feed").attr("src", `/video_feed/${filename}?t=${Date.now()}`).show();#}
+{#                    console.log("Video feed set to: /video_feed/" + filename);#}
+{#                    // Start updating events after video upload#}
+{#                    updateEvents(); // Initial call#}
+{#                    setInterval(updateEvents, 2000); // Start periodic updates#}
+{#                } else {#}
+{#                    alert("Upload failed: " + response.error);#}
+{#                }#}
+{#            },#}
+{#            error: function(xhr) {#}
+{#                console.error("Upload error:", xhr.responseText);#}
+{#                alert("Upload failed!");#}
+{#            }#}
+{#        });#}
+{#    });#}
+{##}
+{#    // Fetch and update Real-Time Events#}
+{#    function updateEvents() {#}
+{#        $.ajax({#}
+{#            url: "/events",#}
+{#            type: "GET",#}
+{#            dataType: "json",#}
+{#            success: function(data) {#}
+{#                console.log("Received data:", data);#}
+{#                $("#event_log").empty();#}
+{#                $("#error-message").hide();#}
+{##}
+{#                if (!data || data.length === 0) {#}
+{#                    $("#event_log").append("<tr><td colspan='8'>No events yet</td></tr>");#}
+{#                    return;#}
+{#                }#}
+{##}
+{#                data.forEach(event => {#}
+{#                    let rowStyle = "";#}
+{#                    if (event.event_type && typeof event.event_type === "string" && event.event_type.includes("Frontier")) {#}
+{#                        rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"';#}
+{#                    }#}
+{##}
+{#                    let ttcDisplay = event.ttc !== "N/A" ? (event.ttc === Infinity ? "N/A" : event.ttc + "s") : "N/A";#}
+{##}
+{#                    let row = `<tr ${rowStyle}>#}
+{#                        <td>${event.id || 'N/A'}</td>#}
+{#                        <td>${event.vehicle_id || 'N/A'}</td>#}
+{#                        <td>${event.event_type || 'N/A'}</td>#}
+{#                        <td>${event.timestamp || 'N/A'}</td>#}
+{#                        <td>[${event.x1 || 0}, ${event.y1 || 0}, ${event.x2 || 0}, ${event.y2 || 0}]</td>#}
+{#                        <td>${ttcDisplay}</td>#}
+{#                        <td>${(event.latitude || 'N/A') + ", " + (event.longitude || 'N/A')}</td>#}
+{#                        <td>${event.motion_status || 'N/A'}</td>#}
+{#                    </tr>`;#}
+{#                    $("#event_log").append(row);#}
+{##}
+{#                    // Update GPS Data (use latest event)#}
+{#                    $("#gps-data").text(`📍 GPS: ${(event.latitude || 'N/A')}, ${(event.longitude || 'N/A')}`);#}
+{##}
+{#                    // Real-Time Alerts with Sound#}
+{#                    const alertSound = $("#alertSound")[0];#}
+{#                    if (event.event_type === "Near Collision") {#}
+{#                        $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();#}
+{#                        alertSound.play();#}
+{#                    } else if (event.event_type && event.event_type.includes("Anomaly")) {#}
+{#                        $("#alert").text("⚠️ Anomaly Detected in Frontier Vehicle! ⚠️").fadeIn().delay(3000).fadeOut();#}
+{#                        alertSound.play();#}
+{#                    } else if (event.motion_status === "🚨 Sudden Stop Detected!") {#}
+{#                        $("#alert").text("🚨 Sudden Stop Detected! 🚨").fadeIn().delay(3000).fadeOut();#}
+{#                        alertSound.play();#}
+{#                    } else if (event.motion_status === "⚠️ Harsh Braking") {#}
+{#                        $("#alert").text("⚠️ Harsh Braking Detected! ⚠️").fadeIn().delay(3000).fadeOut();#}
+{#                    }#}
+{#                });#}
+{#            },#}
+{#            error: function(xhr, status, error) {#}
+{#                console.error("Error fetching data:", error, "Status:", status, "Response:", xhr.responseText);#}
+{#                $("#error-message").text("Error loading events: " + error + " (Check console for details)").show();#}
+{#            }#}
+{#        });#}
+{#    }#}
+{##}
+{#    // Manual update function for testing#}
+{#    function updateEventsManually() {#}
+{#        console.log("Manual update triggered");#}
+{#        updateEvents();#}
+{#    }#}
+{#</script>#}
+{##}
+{#</body>#}
+{#</html>#}
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,29 +417,42 @@
             font-family: Arial, sans-serif;
             text-align: center;
             background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
         }
         h1, h2 {
             color: #333;
         }
         #uploadForm {
             margin: 20px auto;
-            padding: 10px;
+            padding: 15px;
             background: white;
             display: inline-block;
             border-radius: 8px;
             box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
         }
+        #video_feed {
+            max-width: 100%;
+            width: 640px;
+            height: 384px;
+            display: none;
+            margin: 10px auto;
+            border: 2px solid #333;
+            border-radius: 5px;
+        }
         table {
-            width: 80%;
+            width: 90%;
+            max-width: 1200px;
             margin: 20px auto;
             border-collapse: collapse;
             background: white;
             box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
         }
         th, td {
-            padding: 10px;
+            padding: 12px;
             border: 1px solid #ddd;
             text-align: center;
+            font-size: 14px;
         }
         th {
             background-color: #333;
@@ -40,6 +460,9 @@
         }
         tr:nth-child(even) {
             background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
         }
         .alert {
             padding: 10px;
@@ -57,6 +480,24 @@
             font-weight: bold;
             color: #0066cc;
         }
+        #error-message {
+            color: red;
+            display: none;
+            margin: 10px auto;
+            font-weight: bold;
+        }
+        #update-button {
+            margin: 10px auto;
+            padding: 5px 10px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #update-button:hover {
+            background-color: #555;
+        }
     </style>
 </head>
 <body>
@@ -68,13 +509,14 @@
     </form>
 
     <h2>Processed Video:</h2>
-    <img id="video_feed" width="720px" style="display: none;"> <!-- Hidden until video starts -->
+    <img id="video_feed" alt="Video Feed">
 
     <h2>Real-Time GPS Data</h2>
     <p id="gps-data">📍 Waiting for GPS Data...</p>
 
     <h2>🚨 Critical Alerts</h2>
     <div id="alert" class="alert"></div>
+    <audio id="alertSound" src="https://www.soundjay.com/buttons/beep-01a.mp3" preload="auto"></audio>
 
     <h2>Real-Time Event Log</h2>
     <table>
@@ -87,84 +529,117 @@
                 <th>Coordinates</th>
                 <th>TTC (s)</th>
                 <th>GPS Lat, Lon</th>
+                <th>Motion Status</th>
             </tr>
         </thead>
         <tbody id="event_log"></tbody>
     </table>
+    <div id="error-message">Error loading events. Check console for details.</div>
+    <button id="update-button" onclick="updateEventsManually()">Update Table Now</button>
 
-    <script>
-        // ✅ Handle Video Upload
-        $("#uploadForm").submit(function(event) {
-            event.preventDefault();
-            var formData = new FormData(this);
-
-            $.ajax({
-                url: "/upload",
-                type: "POST",
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function(response) {
+<script>
+    // Handle Video Upload
+    $("#uploadForm").submit(function(event) {
+        event.preventDefault();
+        var formData = new FormData(this);
+        $.ajax({
+            url: "/upload",
+            type: "POST",
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if (response.filename) {
                     var filename = response.filename;
-                    $("#video_feed").attr("src", "/video_feed/" + filename).show();
-                },
-                error: function(xhr) {
-                    alert("Upload failed!");
+                    $("#video_feed").attr("src", `/video_feed/${filename}?t=${Date.now()}`).show();
+                    console.log("Video feed set to: /video_feed/" + filename);
+                    updateEvents(); // Initial call
+                    setInterval(updateEvents, 2000); // Start periodic updates
+                } else {
+                    alert("Upload failed: " + response.error);
                 }
-            });
+            },
+            error: function(xhr) {
+                console.error("Upload error:", xhr.responseText);
+                alert("Upload failed!");
+            }
         });
+    });
 
-        // ✅ Fetch and update Real-Time Events
-        function updateEvents() {
+    // Fetch and update Real-Time Events
+    function updateEvents() {
         $.ajax({
             url: "/events",
             type: "GET",
             dataType: "json",
             success: function(data) {
-                console.log("Received data:", data);  // ✅ Debug Log
+                console.log("Received data:", data);
                 $("#event_log").empty();
+                $("#error-message").hide();
+
+                if (!data || data.length === 0) {
+                    $("#event_log").append("<tr><td colspan='8'>No events yet</td></tr>");
+                    return;
+                }
 
                 data.forEach(event => {
-                    let rowStyle = ""; // Default row styling
-
-                    // ✅ Apply light red background color for "Frontier" vehicles
-                    if (event.event_type === "Frontier") {
-                        rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"'; // Light red
+                    let rowStyle = "";
+                    if (event.event_type && typeof event.event_type === "string" && event.event_type.includes("Frontier")) {
+                        rowStyle = 'style="background-color: rgba(0, 255, 0, 0.2);"'; // Light green for all frontier
                     }
+                    if (event.motion_status === "Collided") {
+                        rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"'; // Light red for collided
+                    }
+
+                    let ttcDisplay = event.ttc !== "N/A" ? (event.ttc === Infinity ? "N/A" : event.ttc + "s") : "N/A";
 
                     let row = `<tr ${rowStyle}>
-                        <td>${event.id}</td>
-                        <td>${event.vehicle_id}</td>
-                        <td>${event.event_type}</td>
-                        <td>${event.timestamp}</td>
-                        <td>[${event.x1}, ${event.y1}, ${event.x2}, ${event.y2}]</td>
-                        <td>${event.ttc !== "N/A" ? event.ttc + "s" : 'N/A'}</td>
-                        <td>${event.latitude}, ${event.longitude}</td>
+                        <td>${event.id || 'N/A'}</td>
+                        <td>${event.vehicle_id || 'N/A'}</td>
+                        <td>${event.event_type || 'N/A'}</td>
+                        <td>${event.timestamp || 'N/A'}</td>
+                        <td>[${event.x1 || 0}, ${event.y1 || 0}, ${event.x2 || 0}, ${event.y2 || 0}]</td>
+                        <td>${ttcDisplay}</td>
+                        <td>${(event.latitude || 'N/A') + ", " + (event.longitude || 'N/A')}</td>
+                        <td>${event.motion_status || 'N/A'}</td>
                     </tr>`;
-
                     $("#event_log").append(row);
 
-                    // ✅ Update GPS Data Display
-                    $("#gps-data").text(`📍 GPS: ${event.latitude}, ${event.longitude}`);
+                    // Update GPS Data (use latest event)
+                    $("#gps-data").text(`📍 GPS: ${(event.latitude || 'N/A')}, ${(event.longitude || 'N/A')}`);
 
-                    // ✅ Real-Time Alerts for Critical Events
+                    // Real-Time Alerts with Sound
+                    const alertSound = $("#alertSound")[0];
                     if (event.event_type === "Near Collision") {
                         $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
-                    }
-                    if (event.event_type === "Frontier" && event.ttc < 2) {
-                        $("#alert").text("⚠️ TTC Below Threshold! Possible Impact ⚠️").fadeIn().delay(3000).fadeOut();
+                        alertSound.play();
+                    } else if (event.event_type && event.event_type.includes("Anomaly")) {
+                        $("#alert").text("⚠️ Anomaly Detected in Frontier Vehicle! ⚠️").fadeIn().delay(3000).fadeOut();
+                        alertSound.play();
+                    } else if (event.motion_status === "🚨 Sudden Stop Detected!") {
+                        $("#alert").text("🚨 Sudden Stop Detected! 🚨").fadeIn().delay(3000).fadeOut();
+                        alertSound.play();
+                    } else if (event.motion_status === "⚠️ Harsh Braking") {
+                        $("#alert").text("⚠️ Harsh Braking Detected! ⚠️").fadeIn().delay(3000).fadeOut();
+                    } else if (event.motion_status === "Collided") {
+                        $("#alert").text("🚨 COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                        alertSound.play();
                     }
                 });
             },
             error: function(xhr, status, error) {
-                console.error("Error fetching data:", error);  // ✅ Debug Log
+                console.error("Error fetching data:", error, "Status:", status, "Response:", xhr.responseText);
+                $("#error-message").text("Error loading events: " + error + " (Check console for details)").show();
             }
         });
     }
 
-    // ✅ Fetch new event data every 2 seconds
-    setInterval(updateEvents, 2000);
-    </script>
+    // Manual update function for testing
+    function updateEventsManually() {
+        console.log("Manual update triggered");
+        updateEvents();
+    }
+</script>
 
 </body>
 </html>
