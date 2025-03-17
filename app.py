@@ -18,6 +18,7 @@ import atexit
 import logging
 import pickle
 from pathlib import Path
+import math
 
 # Import blockchain blueprint
 from blockchain import blockchain_bp
@@ -49,6 +50,8 @@ PIXELS_PER_METER = 0.1
 vehicle_history = {}
 collided_vehicles = set()
 collision_cooldown = {}
+ego_gps_history = {}  # To store GPS history for the ego vehicle
+frontier_gps_history = {}  # To store GPS history for the frontier vehicle
 
 class EventLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -83,6 +86,111 @@ except FileNotFoundError:
 except Exception as e:
     logger.error(f"Error loading frontier classification model: {e}")
     raise
+
+# Haversine formula to calculate distance between two GPS coordinates (in meters)
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371000  # Earth's radius in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+
+    a = math.sin(delta_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    distance = R * c  # Distance in meters
+    return distance
+
+# Calculate speed from GPS coordinates over time using frame count
+def calculate_speed_from_gps(gps_history, lat, lon, frame_count, frame_time):
+    key = "ego"  # Use a fixed key for the ego vehicle
+    if key not in gps_history:
+        gps_history[key] = {"last_lat": lat, "last_lon": lon, "last_frame": frame_count, "speed": 40.0}
+        return 40.0
+
+    last_lat = gps_history[key]["last_lat"]
+    last_lon = gps_history[key]["last_lon"]
+    last_frame = gps_history[key]["last_frame"]
+    time_diff = (frame_count - last_frame) * frame_time
+
+    if time_diff <= 0:
+        logger.info(f"Time difference zero or negative for ego vehicle")
+        return gps_history[key]["speed"]
+
+    distance = haversine_distance(last_lat, last_lon, lat, lon)
+    speed_mps = distance / time_diff
+    speed_kmh = speed_mps * 3.6
+    speed_kmh = max(0, min(120, speed_kmh))
+
+    alpha = 0.7
+    smoothed_speed = alpha * speed_kmh + (1 - alpha) * gps_history[key]["speed"]
+    gps_history[key]["speed"] = smoothed_speed
+    gps_history[key]["last_lat"] = lat
+    gps_history[key]["last_lon"] = lon
+    gps_history[key]["last_frame"] = frame_count
+    logger.info(f"Calculated speed for ego vehicle: {smoothed_speed} km/h")
+    return smoothed_speed
+
+
+# Draw a cyan speedometer with a transparent background as a 270-degree arc with numbers on the arc
+def draw_speedometer(frame, speed, center_x=None, center_y=None, radius=60):
+    CYAN = (95, 189, 255)  # Define cyan color explicitly
+
+    # Get the frame dimensions
+    height, width = frame.shape[:2]
+
+    # Set the speedometer position to the bottom-right corner
+    margin = 20  # Margin from the edges
+    center_x = width - radius - margin  # Position center_x near the right edge
+    center_y = height - radius - margin  # Position center_y near the bottom edge
+
+    # Draw the outer arc of the speedometer (270 degrees, from 315° to 225° counterclockwise)
+    start_angle = 315    # Start at 7:30 position (315°)
+    end_angle = 225      # End at 4:30 position (225°), covering 270° counterclockwise
+    cv2.ellipse(frame, (center_x, center_y), (radius, radius), 0, start_angle, end_angle, CYAN, 2)
+
+    # Draw speed markers and numbers on the arc
+    for speed_mark in range(0, 121, 20):
+        # Map speed (0-120) to angle (315° to 225° counterclockwise), starting from 0 at 315° to 120 at 225°
+        angle = math.radians(315 - (speed_mark / 120.0) * 270)  # From 315° to 225° (270° range)
+        x1 = int(center_x + (radius - 5) * math.cos(angle))  # Inner point of the marker
+        y1 = int(center_y - (radius - 5) * math.sin(angle))
+        x2 = int(center_x + radius * math.cos(angle))  # Outer point of the marker (on the arc)
+        y2 = int(center_y - radius * math.sin(angle))
+        cv2.line(frame, (x1, y1), (x2, y2), CYAN, 1)
+
+        # Place the number exactly on the arc
+        label_x = int(center_x + radius * math.cos(angle))  # Position exactly on the arc
+        label_y = int(center_y - radius * math.sin(angle))
+
+        # Adjust text position based on angle to center the numbers
+        text = str(speed_mark)
+        (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.4, 1)
+
+        # Calculate offset to center the text on the arc
+        offset_x = -text_width // 2  # Center the text horizontally
+        offset_y = text_height // 2  # Center the text vertically
+        adjusted_x = label_x + offset_x
+        adjusted_y = label_y + offset_y
+
+        # Add a subtle black outline to the text for better visibility
+        cv2.putText(frame, text, (adjusted_x, adjusted_y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 0), 2)  # Black outline
+        cv2.putText(frame, text, (adjusted_x, adjusted_y), cv2.FONT_HERSHEY_SIMPLEX, 0.4, CYAN, 1)  # Cyan text
+
+    # Draw the needle in cyan
+    speed = min(max(speed, 0), 120)  # Clamp speed between 0 and 120
+    angle = math.radians(315 - (speed / 120.0) * 270)  # Map speed from 315° (0 km/h) to 225° (120 km/h)
+    needle_length = radius - 10
+    needle_x = int(center_x + needle_length * math.cos(angle))
+    needle_y = int(center_y - needle_length * math.sin(angle))
+    cv2.line(frame, (center_x, center_y), (needle_x, needle_y), CYAN, 2)
+
+    # Draw the speed text in the top-right corner of the video feed
+    speed_text = f"{int(speed)} km/h"
+    (text_width, text_height), _ = cv2.getTextSize(speed_text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    text_pos = (width - text_width - 20, 30)  # Position in top-right corner (20 pixels from right, 30 from top)
+    cv2.putText(frame, speed_text, text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2)  # Black outline
+    cv2.putText(frame, speed_text, text_pos, cv2.FONT_HERSHEY_SIMPLEX, 0.5, CYAN, 1)  # Cyan text
+
 
 def calculate_ttc(ego_speed, frontier_speed, distance):
     if frontier_speed <= ego_speed or distance <= 0:
@@ -230,9 +338,18 @@ def process_video(video_path):
                     cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
                 gps_data = get_gps_data()
+                logger.info(f"Frame {frame_count}: GPS Data - Lat: {gps_data['latitude']}, Lon: {gps_data['longitude']}")
                 ego_speed = gps_data["speed"]
                 motion_status = detect_motion_changes(prev_frame, frame) if prev_frame is not None else "✅ Normal Motion"
                 prev_frame = frame.copy()
+
+                # Calculate ego vehicle speed using GPS data
+                lat, lon = gps_data["latitude"], gps_data["longitude"]
+                ego_speed_gps = calculate_speed_from_gps(ego_gps_history, lat, lon, frame_count, FRAME_TIME)
+
+                # Draw speedometer with ego vehicle speed
+                draw_speedometer(frame, ego_speed_gps, width - 80, height - 80, radius=50)
+
                 results = model(frame)[0]
                 detections = []
                 for box in results.boxes:
@@ -259,11 +376,18 @@ def process_video(video_path):
 
                 # Predict frontier vehicle using ML model
                 frontier_vehicle = None
+                frontier_speed = 0
                 if test_data:
                     predictions = frontier_clf.predict(test_data)
                     frontier_idx = np.argmax(predictions) if any(predictions) else -1
+                    logger.info(f"Frontier vehicle index: {frontier_idx}, Vehicle: {frontier_vehicle}")
                     if frontier_idx >= 0 and frontier_idx < len(tracked_objects):
                         frontier_vehicle = tracked_objects[frontier_idx]
+                        if frontier_vehicle is not None:
+                            track_id = int(frontier_vehicle[4])
+                            y_center = (frontier_vehicle[1] + frontier_vehicle[3]) // 2
+                            frontier_speed = estimate_frontier_speed(track_id, y_center, frame_count, FRAME_TIME)
+                            logger.info(f"Frontier speed (pixel-based): {frontier_speed}")
 
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 0.3
@@ -283,7 +407,6 @@ def process_video(video_path):
                         color = (0, 255, 0)
                         event_type = "Frontier"
                         y_center = (y1 + y2) // 2
-                        frontier_speed = estimate_frontier_speed(track_id, y_center, frame_count, FRAME_TIME)
                         distance = height - y2
                         ttc = calculate_ttc(ego_speed, frontier_speed, distance) if frontier_speed and ego_speed else float('inf')
                         if ttc < 2:
