@@ -380,18 +380,18 @@
 
             if (isNewEvent) {
                 if (event.event_type === "Near Collision") {
-                    $("#alert").text("🚨 NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                    $("#alert").text("NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
                     alertSound.play();
                 } else if (event.event_type && event.event_type.includes("Anomaly")) {
-                    $("#alert").text("⚠️ Anomaly Detected in Frontier Vehicle! ⚠️").fadeIn().delay(3000).fadeOut();
+                    $("#alert").text("Anomaly Detected in Frontier Vehicle!").fadeIn().delay(3000).fadeOut();
                     alertSound.play();
-                } else if (event.motion_status === "🚨 Sudden Stop Detected!") {
-                    $("#alert").text("🚨 Sudden Stop Detected! 🚨").fadeIn().delay(3000).fadeOut();
+                } else if (event.motion_status === "Sudden Stop Detected!") {
+                    $("#alert").text("Sudden Stop Detected!").fadeIn().delay(3000).fadeOut();
                     alertSound.play();
-                } else if (event.motion_status === "⚠️ Harsh Braking") {
-                    $("#alert").text("⚠️ Harsh Braking Detected! ⚠️").fadeIn().delay(3000).fadeOut();
+                } else if (event.motion_status === "Harsh Braking") {
+                    $("#alert").text("Harsh Braking Detected!").fadeIn().delay(3000).fadeOut();
                 } else if (event.motion_status === "Collided") {
-                    $("#alert").text("🚨 COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();
+                    $("#alert").text("COLLISION DETECTED!").fadeIn().delay(3000).fadeOut();
                     alertSound.play();
                 }
             }

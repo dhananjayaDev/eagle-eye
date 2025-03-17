@@ -340,7 +340,7 @@ def process_video(video_path):
                 gps_data = get_gps_data()
                 logger.info(f"Frame {frame_count}: GPS Data - Lat: {gps_data['latitude']}, Lon: {gps_data['longitude']}")
                 ego_speed = gps_data["speed"]
-                motion_status = detect_motion_changes(prev_frame, frame) if prev_frame is not None else "✅ Normal Motion"
+                motion_status = detect_motion_changes(prev_frame, frame) if prev_frame is not None else "Normal Motion"
                 prev_frame = frame.copy()
 
                 # Calculate ego vehicle speed using GPS data
@@ -402,7 +402,7 @@ def process_video(video_path):
                     color = (255, 0, 0)
                     event_type = "Tracked"
                     ttc = None
-                    vehicle_motion = "✅ Normal Motion" if motion_status == "✅ Normal Motion" else motion_status
+                    vehicle_motion = "Normal Motion" if motion_status == "Normal Motion" else motion_status
                     if np.array_equal(track, frontier_vehicle):
                         color = (0, 255, 0)
                         event_type = "Frontier"
@@ -426,9 +426,9 @@ def process_video(video_path):
                             dist_moved = ((current_pos[0] - prev_pos[0]) ** 2 + (current_pos[1] - prev_pos[1]) ** 2) ** 0.5
                             speed_px_per_frame = dist_moved / FRAME_TIME
                             if speed_px_per_frame < 0.5:
-                                vehicle_motion = "🚨 Sudden Stop Detected!"
+                                vehicle_motion = "Sudden Stop Detected!"
                             elif speed_px_per_frame > 5.0:
-                                vehicle_motion = "⚠️ Harsh Braking"
+                                vehicle_motion = "Harsh Braking"
                         prev_tracks[track_id] = current_pos
 
                         is_collision = False
@@ -443,7 +443,7 @@ def process_video(video_path):
                                     collided_vehicles.add(other_id)
                                     collision_cooldown[other_id] = frame_count + (5 * FPS)
 
-                        if is_collision and vehicle_motion not in ["Collided", "🚨 Sudden Stop Detected!", "⚠️ Harsh Braking"]:
+                        if is_collision and vehicle_motion not in ["Collided", "Sudden Stop Detected!", "Harsh Braking"]:
                             vehicle_motion = "Collided"
                             collided_vehicles.add(track_id)
                             collision_cooldown[track_id] = frame_count + (5 * FPS)
@@ -483,7 +483,7 @@ def process_video(video_path):
                         id_bg_pos1 = (x1 - padding, id_pos[1] - id_height - padding)
                         id_bg_pos2 = (x1 + max_width + padding, id_pos[1] + padding)
 
-                        is_critical = vehicle_motion in ["Collided", "⚠️ Harsh Braking", "🚨 Sudden Stop Detected!"]
+                        is_critical = vehicle_motion in ["Collided", "Harsh Braking", "Sudden Stop Detected!"]
                         bg_color = (0, 0, 255) if is_critical else (0, 0, 0)
                         alpha = 0.6
 
@@ -589,7 +589,7 @@ def get_events():
 def export_critical_events():
     try:
         with app.app_context():
-            critical_event_types = ["Collided", "⚠️ Harsh Braking", "🚨 Sudden Stop Detected!"]
+            critical_event_types = ["Collided", "Harsh Braking", "Sudden Stop Detected!"]
             critical_events = EventLog.query.filter(EventLog.motion_status.in_(critical_event_types)).all()
 
             if not critical_events:
@@ -687,7 +687,7 @@ def clear_exported_files():
 def export_critical_events_on_shutdown():
     try:
         with app.app_context():
-            critical_event_types = ["Collided", "⚠️ Harsh Braking", "🚨 Sudden Stop Detected!"]
+            critical_event_types = ["Collided", "Harsh Braking", "Sudden Stop Detected!"]
             critical_events = EventLog.query.filter(EventLog.motion_status.in_(critical_event_types)).all()
 
             if not critical_events:

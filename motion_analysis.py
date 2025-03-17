@@ -12,8 +12,8 @@ def detect_motion_changes(prev_frame, curr_frame):
     motion_magnitude = np.mean(np.sqrt(flow[..., 0]**2 + flow[..., 1]**2))
 
     if motion_magnitude > 10:
-        return "🚨 Sudden Stop Detected!"
+        return "Sudden Stop Detected!"
     elif motion_magnitude > 5:
-        return "⚠️ Harsh Braking"
+        return "Harsh Braking"
     else:
-        return "✅ Normal Motion"
+        return "Normal Motion"
