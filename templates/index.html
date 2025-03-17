@@ -1,3 +1,677 @@
+{#<!DOCTYPE html>#}
+{#<html lang="en">#}
+{#<head>#}
+{#    <meta charset="UTF-8">#}
+{#    <meta name="viewport" content="width=device-width, initial-scale=1.0">#}
+{#    <title>Vehicle Detection & Analysis Dashboard</title>#}
+{#    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>#}
+{#    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>#}
+{#    <style>#}
+{#        body {#}
+{#            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;#}
+{#            margin: 0;#}
+{#            padding: 20px;#}
+{#            background-color: #f9fafb;#}
+{#        }#}
+{#        h1 {#}
+{#            color: #111827;#}
+{#            text-align: center;#}
+{#            font-size: 2rem;#}
+{#            font-weight: 700;#}
+{#        }#}
+{#        .tab-container {#}
+{#            max-width: 1200px;#}
+{#            margin: 0 auto;#}
+{#            background: white;#}
+{#            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);#}
+{#            border-radius: 8px;#}
+{#        }#}
+{#        .tab-buttons {#}
+{#            display: flex;#}
+{#            border-bottom: 2px solid #e5e7eb;#}
+{#            margin-bottom: 10px;#}
+{#        }#}
+{#        .tab-button {#}
+{#            flex: 1;#}
+{#            padding: 10px;#}
+{#            text-align: center;#}
+{#            background-color: #e5e7eb;#}
+{#            cursor: pointer;#}
+{#            border: none;#}
+{#            outline: none;#}
+{#            font-weight: 600;#}
+{#            transition: background-color 0.3s;#}
+{#        }#}
+{#        .tab-button:hover {#}
+{#            background-color: #d1d5db;#}
+{#        }#}
+{#        .tab-button.active {#}
+{#            background-color: #111827;#}
+{#            color: white;#}
+{#        }#}
+{#        .tab-content {#}
+{#            display: none;#}
+{#            padding: 20px;#}
+{#        }#}
+{#        .tab-content.active {#}
+{#            display: block;#}
+{#        }#}
+{#        #video_feed {#}
+{#            max-width: 100%;#}
+{#            width: 640px;#}
+{#            height: 384px;#}
+{#            border: none;#}
+{#            border-radius: 5px;#}
+{#            margin: 10px auto;#}
+{#            display: none;#}
+{#        }#}
+{#        table {#}
+{#            width: 100%;#}
+{#            border-collapse: collapse;#}
+{#            margin-top: 20px;#}
+{#        }#}
+{#        th, td {#}
+{#            padding: 12px;#}
+{#            border: 1px solid #e5e7eb;#}
+{#            text-align: center;#}
+{#            font-size: 14px;#}
+{#        }#}
+{#        th {#}
+{#            background-color: #111827;#}
+{#            color: white;#}
+{#        }#}
+{#        tr:nth-child(even) {#}
+{#            background-color: #f9fafb;#}
+{#        }#}
+{#        tr:hover {#}
+{#            background-color: #f1f5f9;#}
+{#        }#}
+{#        .alert {#}
+{#            padding: 10px;#}
+{#            color: white;#}
+{#            background-color: #ef4444;#}
+{#            display: none;#}
+{#            width: 50%;#}
+{#            margin: 10px auto;#}
+{#            font-weight: bold;#}
+{#            border-radius: 5px;#}
+{#        }#}
+{#        #gps-data {#}
+{#            margin: 10px auto;#}
+{#            font-size: 18px;#}
+{#            font-weight: bold;#}
+{#            color: #2563eb;#}
+{#        }#}
+{#        .error-message {#}
+{#            color: #ef4444;#}
+{#            display: none;#}
+{#            margin: 10px auto;#}
+{#            font-weight: bold;#}
+{#        }#}
+{#        #update-button {#}
+{#            margin: 10px auto;#}
+{#            padding: 5px 10px;#}
+{#            background-color: #111827;#}
+{#            color: white;#}
+{#            border: none;#}
+{#            border-radius: 5px;#}
+{#            cursor: pointer;#}
+{#        }#}
+{#        #update-button:hover {#}
+{#            background-color: #374151;#}
+{#        }#}
+{#        form {#}
+{#            margin: 20px 0;#}
+{#        }#}
+{#        .bg-white { background-color: #ffffff; }#}
+{#        .p-6 { padding: 1.5rem; }#}
+{#        .rounded-lg { border-radius: 0.5rem; }#}
+{#        .shadow-md { box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); }#}
+{#        .w-full { width: 100%; }#}
+{#        .max-w-3xl { max-width: 48rem; }#}
+{#        .flex { display: flex; }#}
+{#        .flex-col { flex-direction: column; }#}
+{#        .items-center { align-items: center; }#}
+{#        .gap-4 { gap: 1rem; }#}
+{#        .bg-gray-100 { background-color: #f3f4f6; }#}
+{#        .p-3 { padding: 0.75rem; }#}
+{#        .cursor-pointer { cursor: pointer; }#}
+{#        .hover\:bg-gray-200:hover { background-color: #e5e7eb; }#}
+{#        .text-gray-600 { color: #4b5563; }#}
+{#        .hidden { display: none; }#}
+{#        .bg-gray-200 { background-color: #e5e7eb; }#}
+{#        .hover\:bg-gray-300:hover { background-color: #d1d5db; }#}
+{#        .text-gray-800 { color: #1f2937; }#}
+{#        .px-4 { padding-left: 1rem; padding-right: 1rem; }#}
+{#        .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }#}
+{#        .rounded { border-radius: 0.25rem; }#}
+{#        .text-2xl { font-size: 1.5rem; }#}
+{#        .font-semibold { font-weight: 600; }#}
+{#        .mt-10 { margin-top: 2.5rem; }#}
+{#        .mt-4 { margin-top: 1rem; }#}
+{#        .text-left { text-align: left; }#}
+{#        .border-collapse { border-collapse: collapse; }#}
+{#        .bg-gray-200 { background-color: #e5e7eb; }#}
+{#        .p-2 { padding: 0.5rem; }#}
+{#        .border { border-width: 1px; }#}
+{#        .border-gray-300 { border-color: #d1d5db; }#}
+{#        .text-center { text-align: center; }#}
+{#        .text-gray-500 { color: #6b7280; }#}
+{#        .p-4 { padding: 1rem; }#}
+{#        .hover\:bg-gray-100:hover { background-color: #f3f4f6; }#}
+{#        .bg-teal-500 { background-color: #14b8a6; }#}
+{#        .hover\:bg-teal-600:hover { background-color: #0d9488; }#}
+{#        .bg-indigo-500 { background-color: #6366f1; }#}
+{#        .hover\:bg-indigo-600:hover { background-color: #4f46e5; }#}
+{#        .bg-red-500 { background-color: #ef4444; }#}
+{#        .hover\:bg-red-600:hover { background-color: #dc2626; }#}
+{#        .text-white { color: #ffffff; }#}
+{#        .px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }#}
+{#        .py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }#}
+{#    </style>#}
+{#</head>#}
+{#<body>#}
+{#    <h1>Vehicle Detection & Analysis Dashboard</h1>#}
+{#    <div class="tab-container">#}
+{#        <div class="tab-buttons">#}
+{#            <button class="tab-button active" onclick="openTab('LiveStreaming')">Live Streaming</button>#}
+{#            <button class="tab-button" onclick="openTab('CriticalEventAnalysis')">Critical Event Analysis</button>#}
+{#            <button class="tab-button" onclick="openTab('EnvironmentAnalysis')">Environment Analysis</button>#}
+{#            <button class="tab-button" onclick="openTab('BlockchainStore')">Blockchain Store</button>#}
+{#            <button class="tab-button" onclick="openTab('PedestrianAnalysis')">Pedestrian Analysis</button>#}
+{#        </div>#}
+{##}
+{#        <div id="LiveStreaming" class="tab-content active">#}
+{#            <h2>Live Streaming</h2>#}
+{#            <p>This tab is reserved for future real-time camera integration. Functionality to be developed.</p>#}
+{#        </div>#}
+{##}
+{#        <div id="CriticalEventAnalysis" class="tab-content">#}
+{#            <h2>Critical Event Analysis</h2>#}
+{#            <form id="uploadForm" action="/upload" method="post" enctype="multipart/form-data">#}
+{#                <input type="file" id="videoFile" name="file" accept="video/*" required>#}
+{#                <button type="submit">Upload</button>#}
+{#            </form>#}
+{#            <div id="upload-error-message" class="error-message">Error uploading video. Check console for details.</div>#}
+{#            <h3>Processed Video Feed</h3>#}
+{#            <img id="video_feed" alt="Video Feed" onerror="handleVideoError()">#}
+{#            <h3>Real-Time GPS Data</h3>#}
+{#            <p id="gps-data">📍 Waiting for GPS Data...</p>#}
+{#            <h3>🚨 Critical Alerts</h3>#}
+{#            <div id="alert" class="alert"></div>#}
+{#            <audio id="alertSound" src="https://www.soundjay.com/buttons/beep-01a.mp3" preload="auto"></audio>#}
+{#            <h3>Real-Time Event Log</h3>#}
+{#            <table>#}
+{#                <thead>#}
+{#                    <tr>#}
+{#                        <th>ID</th>#}
+{#                        <th>Vehicle ID</th>#}
+{#                        <th>Event Type</th>#}
+{#                        <th>Timestamp</th>#}
+{#                        <th>Coordinates</th>#}
+{#                        <th>TTC (s)</th>#}
+{#                        <th>GPS Lat, Lon</th>#}
+{#                        <th>Motion Status</th>#}
+{#                    </tr>#}
+{#                </thead>#}
+{#                <tbody id="event_log"></tbody>#}
+{#            </table>#}
+{#            <div id="events-error-message" class="error-message">Error loading events. Check console for details.</div>#}
+{#            <button id="update-button" onclick="updateEventsManually()">Update Table Now</button>#}
+{#        </div>#}
+{##}
+{#        <div id="EnvironmentAnalysis" class="tab-content">#}
+{#            <h2>Environment Analysis</h2>#}
+{#            <p>This tab is reserved for environment analysis functionality. Content to be developed.</p>#}
+{#        </div>#}
+{##}
+{#        <div id="BlockchainStore" class="tab-content">#}
+{#            <h2>Blockchain Store</h2>#}
+{#            <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-3xl">#}
+{#                <h3 class="text-lg font-semibold mb-4">Upload Your File to Blockchain</h3>#}
+{#                <div class="flex flex-col items-center gap-4">#}
+{#                    <label class="flex items-center gap-2 bg-gray-100 p-3 rounded-lg cursor-pointer hover:bg-gray-200">#}
+{#                        <span class="text-gray-600">Choose or Drag File</span>#}
+{#                        <input type="file" id="blockchainFile" class="hidden">#}
+{#                    </label>#}
+{#                    <button class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded" onclick="uploadToBlockchainDirectly()">Upload to Blockchain</button>#}
+{#                </div>#}
+{#            </div>#}
+{##}
+{#            <h2 class="text-2xl font-semibold mt-10">Generated Critical Events Files</h2>#}
+{#            <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-3xl mt-4">#}
+{#                <div class="flex justify-end mb-4">#}
+{#                    <button class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded" onclick="clearExportedFiles()">Clear All</button>#}
+{#                </div>#}
+{#                <table class="w-full text-left border-collapse">#}
+{#                    <thead>#}
+{#                        <tr class="bg-gray-200">#}
+{#                            <th class="p-2 border border-gray-300">ID</th>#}
+{#                            <th class="p-2 border border-gray-300">Filename</th>#}
+{#                            <th class="p-2 border border-gray-300">Date & Time</th>#}
+{#                            <th class="p-2 border border-gray-300">Actions</th>#}
+{#                        </tr>#}
+{#                    </thead>#}
+{#                    <tbody id="criticalEventsFileList">#}
+{#                        <tr>#}
+{#                            <td colspan="4" class="text-center text-gray-500 p-4">Loading critical events files...</td>#}
+{#                        </tr>#}
+{#                    </tbody>#}
+{#                </table>#}
+{#                <div id="critical-events-error" class="error-message">Error loading critical events files.</div>#}
+{#            </div>#}
+{##}
+{#            <h2 class="text-2xl font-semibold mt-10">Stored Files on Blockchain</h2>#}
+{#            <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-3xl mt-4">#}
+{#                <table class="w-full text-left border-collapse">#}
+{#                    <thead>#}
+{#                        <tr class="bg-gray-200">#}
+{#                            <th class="p-2 border border-gray-300">ID</th>#}
+{#                            <th class="p-2 border border-gray-300">Filename</th>#}
+{#                            <th class="p-2 border border-gray-300">Date & Time</th>#}
+{#                            <th class="p-2 border border-gray-300">Actions</th>#}
+{#                        </tr>#}
+{#                    </thead>#}
+{#                    <tbody id="blockchainFileList">#}
+{#                        <tr>#}
+{#                            <td colspan="4" class="text-center text-gray-500 p-4">Loading files...</td>#}
+{#                        </tr>#}
+{#                    </tbody>#}
+{#                </table>#}
+{#                <div id="blockchain-error" class="error-message">Error loading files.</div>#}
+{#            </div>#}
+{#        </div>#}
+{##}
+{#        <div id="PedestrianAnalysis" class="tab-content">#}
+{#            <h2>Pedestrian Analysis</h2>#}
+{#            <p>This tab is reserved for pedestrian detection and analysis functionality. Content to be developed.</p>#}
+{#        </div>#}
+{#    </div>#}
+{##}
+{#    <script>#}
+{#        const socket = io();#}
+{#        let sessionStartTime = new Date();#}
+{##}
+{#        socket.on('connect', () => {#}
+{#            console.log('Connected to WebSocket server');#}
+{#        });#}
+{##}
+{#        socket.on('new_event', (event) => {#}
+{#            console.log('New event received:', event);#}
+{#            updateEventLog(event);#}
+{#        });#}
+{##}
+{#        function openTab(tabName) {#}
+{#            $('.tab-content').removeClass('active');#}
+{#            $('.tab-button').removeClass('active');#}
+{#            $('#' + tabName).addClass('active');#}
+{#            $('button:contains("' + tabName.replace(/([A-Z])/g, ' $1').trim() + '")').addClass('active');#}
+{##}
+{#            if (tabName === 'CriticalEventAnalysis') {#}
+{#                updateEventsManually();#}
+{#            } else if (tabName === 'BlockchainStore') {#}
+{#                fetchExportedFiles();#}
+{#                fetchFiles();#}
+{#            }#}
+{#        }#}
+{##}
+{#        $("#uploadForm").submit(function(event) {#}
+{#            event.preventDefault();#}
+{#            var formData = new FormData(this);#}
+{#            $.ajax({#}
+{#                url: "/upload",#}
+{#                type: "POST",#}
+{#                data: formData,#}
+{#                processData: false,#}
+{#                contentType: false,#}
+{#                success: function(response) {#}
+{#                    if (response.filename) {#}
+{#                        var filename = response.filename;#}
+{#                        var videoUrl = `/video_feed/${filename}?t=${Date.now()}`;#}
+{#                        console.log("Setting video feed to:", videoUrl);#}
+{#                        $("#video_feed").attr("src", videoUrl).show();#}
+{#                        $("#upload-error-message").hide();#}
+{#                    } else {#}
+{#                        console.error("Upload failed:", response.error);#}
+{#                        $("#upload-error-message").text("Upload failed: " + response.error).show();#}
+{#                    }#}
+{#                },#}
+{#                error: function(xhr) {#}
+{#                    console.error("Upload error:", xhr.responseText);#}
+{#                    $("#upload-error-message").text("Upload failed: " + xhr.responseText).show();#}
+{#                }#}
+{#            });#}
+{#        });#}
+{##}
+{#        function handleVideoError() {#}
+{#            console.error("Video feed failed to load");#}
+{#            $("#upload-error-message").text("Video feed failed to load. Check console for details.").show();#}
+{#        }#}
+{##}
+{#        function updateEventLog(event) {#}
+{#            let rowStyle = "";#}
+{#            if (event.event_type && typeof event.event_type === "string" && event.event_type.includes("Frontier")) {#}
+{#                rowStyle = 'style="background-color: rgba(0, 255, 0, 0.2);"';#}
+{#            }#}
+{#            if (event.motion_status === "Collided") {#}
+{#                rowStyle = 'style="background-color: rgba(255, 0, 0, 0.2);"';#}
+{#            }#}
+{##}
+{#            let ttcDisplay = event.ttc !== "N/A" ? (event.ttc === Infinity ? "N/A" : event.ttc + "s") : "N/A";#}
+{##}
+{#            let row = `<tr ${rowStyle}>#}
+{#                <td>${event.id || 'N/A'}</td>#}
+{#                <td>${event.vehicle_id || 'N/A'}</td>#}
+{#                <td>${event.event_type || 'N/A'}</td>#}
+{#                <td>${event.timestamp || 'N/A'}</td>#}
+{#                <td>[${event.x1 || 0}, ${event.y1 || 0}, ${event.x2 || 0}, ${event.y2 || 0}]</td>#}
+{#                <td>${ttcDisplay}</td>#}
+{#                <td>${(event.latitude || 'N/A') + ", " + (event.longitude || 'N/A')}</td>#}
+{#                <td>${event.motion_status || 'N/A'}</td>#}
+{#            </tr>`;#}
+{##}
+{#            $("#event_log").prepend(row);#}
+{#            $("#gps-data").text(`📍 GPS: ${(event.latitude || 'N/A')}, ${(event.longitude || 'N/A')}`);#}
+{#            $("#events-error-message").hide();#}
+{##}
+{#            const alertSound = $("#alertSound")[0];#}
+{#            const eventTime = new Date(event.timestamp);#}
+{#            const isNewEvent = eventTime > sessionStartTime;#}
+{##}
+{#            if (isNewEvent) {#}
+{#                if (event.event_type === "Near Collision") {#}
+{#                    $("#alert").text("NEAR COLLISION DETECTED! 🚨").fadeIn().delay(3000).fadeOut();#}
+{#                    alertSound.play();#}
+{#                } else if (event.event_type && event.event_type.includes("Anomaly")) {#}
+{#                    $("#alert").text("Anomaly Detected in Frontier Vehicle!").fadeIn().delay(3000).fadeOut();#}
+{#                    alertSound.play();#}
+{#                } else if (event.motion_status === "Sudden Stop Detected!") {#}
+{#                    $("#alert").text("Sudden Stop Detected!").fadeIn().delay(3000).fadeOut();#}
+{#                    alertSound.play();#}
+{#                } else if (event.motion_status === "Harsh Braking") {#}
+{#                    $("#alert").text("Harsh Braking Detected!").fadeIn().delay(3000).fadeOut();#}
+{#                } else if (event.motion_status === "Collided") {#}
+{#                    $("#alert").text("COLLISION DETECTED!").fadeIn().delay(3000).fadeOut();#}
+{#                    alertSound.play();#}
+{#                }#}
+{#            }#}
+{##}
+{#            if ($("#event_log tr").length > 10) {#}
+{#                $("#event_log tr:last").remove();#}
+{#            }#}
+{#        }#}
+{##}
+{#        function updateEventsManually() {#}
+{#            $.ajax({#}
+{#                url: "/events",#}
+{#                type: "GET",#}
+{#                dataType: "json",#}
+{#                success: function(data) {#}
+{#                    console.log("Received data:", data);#}
+{#                    $("#event_log").empty();#}
+{#                    $("#events-error-message").hide();#}
+{##}
+{#                    if (!data || data.length === 0) {#}
+{#                        $("#event_log").append("<tr><td colspan='8'>No events yet</td></tr>");#}
+{#                        return;#}
+{#                    }#}
+{##}
+{#                    data.forEach(event => updateEventLog(event));#}
+{#                },#}
+{#                error: function(xhr, status, error) {#}
+{#                    console.error("Error fetching data:", error, "Status:", status, "Response:", xhr.responseText);#}
+{#                    $("#events-error-message").text("Error loading events: " + error + " (Check console for details)").show();#}
+{#                }#}
+{#            });#}
+{#        }#}
+{##}
+{#        let localFiles = [];#}
+{#        let fileList = [];#}
+{##}
+{#        function uploadToBlockchainDirectly() {#}
+{#            const fileInput = document.getElementById('blockchainFile');#}
+{#            const file = fileInput.files[0];#}
+{#            if (!file) {#}
+{#                alert("❌ Please select a file before uploading.");#}
+{#                return;#}
+{#            }#}
+{##}
+{#            const allowedTypes = ['application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv'];#}
+{#            if (!allowedTypes.includes(file.type)) {#}
+{#                alert("❌ Invalid file type. Please upload an Excel or CSV file.");#}
+{#                return;#}
+{#            }#}
+{##}
+{#            const maxSize = 10 * 1024 * 1024;#}
+{#            if (file.size > maxSize) {#}
+{#                alert("❌ File size exceeds 10 MB limit.");#}
+{#                return;#}
+{#            }#}
+{##}
+{#            const formData = new FormData();#}
+{#            formData.append("file", file);#}
+{##}
+{#            fetch('/blockchain/store', {#}
+{#                method: 'POST',#}
+{#                body: formData#}
+{#            })#}
+{#            .then(response => response.json())#}
+{#            .then(data => {#}
+{#                if (data.message) {#}
+{#                    alert("✅ File stored successfully on the blockchain!");#}
+{#                    fetchFiles();#}
+{#                    fileInput.value = '';#}
+{#                } else {#}
+{#                    alert("❌ Failed to store file: " + (data.error || "Unknown error"));#}
+{#                }#}
+{#            })#}
+{#            .catch(error => {#}
+{#                console.error("❌ Store file error:", error);#}
+{#                alert("Failed to store file.");#}
+{#            });#}
+{#        }#}
+{##}
+{#        function fetchExportedFiles() {#}
+{#            fetch('/list_exported_files')#}
+{#            .then(response => response.json())#}
+{#            .then(data => {#}
+{#                if (data.files) {#}
+{#                    localFiles = localFiles.filter(file => file.isManualUpload);#}
+{#                    data.files.forEach(file => {#}
+{#                        localFiles.push({#}
+{#                            id: file.id,#}
+{#                            file_name: file.file_name,#}
+{#                            timestamp: file.timestamp,#}
+{#                            isExported: true#}
+{#                        });#}
+{#                    });#}
+{#                    updateLocalFileList();#}
+{#                } else {#}
+{#                    console.error("No exported files received:", data.error);#}
+{#                    document.getElementById('criticalEventsFileList').innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 p-4">No critical events files available.</td></tr>';#}
+{#                }#}
+{#            })#}
+{#            .catch(error => {#}
+{#                console.error("❌ Fetch Exported Files Error:", error);#}
+{#                document.getElementById('critical-events-error').style.display = 'block';#}
+{#            });#}
+{#        }#}
+{##}
+{#        function updateLocalFileList() {#}
+{#            const fileListElement = document.getElementById('criticalEventsFileList');#}
+{#            fileListElement.innerHTML = '';#}
+{#            if (localFiles.length === 0) {#}
+{#                fileListElement.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 p-4">No files added yet.</td></tr>';#}
+{#            } else {#}
+{#                localFiles.forEach(file => {#}
+{#                    const row = document.createElement('tr');#}
+{#                    row.className = 'hover:bg-gray-100';#}
+{#                    row.innerHTML = `#}
+{#                        <td class="p-2 border border-gray-300 text-center">${file.id}</td>#}
+{#                        <td class="p-2 border border-gray-300">${file.file_name}</td>#}
+{#                        <td class="p-2 border border-gray-300">${new Date(file.timestamp).toLocaleString()}</td>#}
+{#                        <td class="p-2 border border-gray-300 text-center">#}
+{#                            <button class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded mr-2" onclick="uploadExportedToBlockchain('${file.file_name}')">Upload to Blockchain</button>#}
+{#                            ${file.isExported ? `<button class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded" onclick="deleteExportedFile('${file.file_name}')">Delete</button>` : ''}#}
+{#                        </td>#}
+{#                    `;#}
+{#                    fileListElement.appendChild(row);#}
+{#                });#}
+{#            }#}
+{#            document.getElementById('critical-events-error').style.display = 'none';#}
+{#        }#}
+{##}
+{#        function uploadExportedToBlockchain(filename) {#}
+{#            const fileEntry = localFiles.find(f => f.file_name === filename);#}
+{#            if (!fileEntry || !fileEntry.isExported) {#}
+{#                alert("❌ File not found or not an exported file.");#}
+{#                return;#}
+{#            }#}
+{##}
+{#            const formData = new FormData();#}
+{#            formData.append("file", new File([], filename));#}
+{##}
+{#            fetch('/blockchain/store', {#}
+{#                method: 'POST',#}
+{#                body: formData#}
+{#            })#}
+{#            .then(response => response.json())#}
+{#            .then(data => {#}
+{#                if (data.message) {#}
+{#                    alert("✅ File stored successfully on the blockchain!");#}
+{#                    localFiles = localFiles.filter(f => f.file_name !== filename);#}
+{#                    updateLocalFileList();#}
+{#                    fetchFiles();#}
+{#                } else {#}
+{#                    alert("❌ Failed to store file: " + (data.error || "Unknown error"));#}
+{#                }#}
+{#            })#}
+{#            .catch(error => {#}
+{#                console.error("❌ Store file error:", error);#}
+{#                alert("Failed to store file.");#}
+{#            });#}
+{#        }#}
+{##}
+{#        function deleteExportedFile(filename) {#}
+{#            if (!confirm(`Are you sure you want to delete ${filename}?`)) return;#}
+{##}
+{#            fetch('/delete_exported_file', {#}
+{#                method: 'POST',#}
+{#                headers: {#}
+{#                    'Content-Type': 'application/json',#}
+{#                },#}
+{#                body: JSON.stringify({ filename: filename })#}
+{#            })#}
+{#            .then(response => response.json())#}
+{#            .then(data => {#}
+{#                if (data.message) {#}
+{#                    alert("✅ File deleted successfully!");#}
+{#                    localFiles = localFiles.filter(f => f.file_name !== filename);#}
+{#                    updateLocalFileList();#}
+{#                } else {#}
+{#                    alert("❌ Failed to delete file: " + (data.error || "Unknown error"));#}
+{#                }#}
+{#            })#}
+{#            .catch(error => {#}
+{#                console.error("❌ Delete file error:", error);#}
+{#                alert("Failed to delete file.");#}
+{#            });#}
+{#        }#}
+{##}
+{#        function clearExportedFiles() {#}
+{#            if (!confirm("Are you sure you want to clear all exported files?")) return;#}
+{##}
+{#            fetch('/clear_exported_files', {#}
+{#                method: 'POST',#}
+{#                headers: {#}
+{#                    'Content-Type': 'application/json',#}
+{#                }#}
+{#            })#}
+{#            .then(response => response.json())#}
+{#            .then(data => {#}
+{#                if (data.message) {#}
+{#                    alert("✅ All exported files cleared successfully!");#}
+{#                    localFiles = localFiles.filter(f => f.isManualUpload);#}
+{#                    updateLocalFileList();#}
+{#                } else {#}
+{#                    alert("❌ Failed to clear files: " + (data.error || "Unknown error"));#}
+{#                }#}
+{#            })#}
+{#            .catch(error => {#}
+{#                console.error("❌ Clear files error:", error);#}
+{#                alert("Failed to clear files.");#}
+{#            });#}
+{#        }#}
+{##}
+{#        function fetchFiles() {#}
+{#            fetch('/blockchain/list')#}
+{#            .then(response => response.json())#}
+{#            .then(data => {#}
+{#                console.log("✅ Files received:", data);#}
+{#                fileList = data.files || [];#}
+{#                updateFileList();#}
+{#            })#}
+{#            .catch(error => {#}
+{#                console.error("❌ Fetch Files Error:", error);#}
+{#                document.getElementById('blockchain-error').style.display = 'block';#}
+{#            });#}
+{#        }#}
+{##}
+{#        function retrieveFile(fileId) {#}
+{#            fetch(`/blockchain/retrieve/${fileId}`)#}
+{#            .then(response => {#}
+{#                if (!response.ok) throw new Error('Failed to retrieve file');#}
+{#                return response.blob();#}
+{#            })#}
+{#            .then(blob => {#}
+{#                const url = window.URL.createObjectURL(blob);#}
+{#                const link = document.createElement('a');#}
+{#                link.href = url;#}
+{#                const filename = fileList.find(f => f.id === fileId)?.file_name || `retrieved_file_${fileId}.xlsx`;#}
+{#                link.setAttribute('download', filename);#}
+{#                document.body.appendChild(link);#}
+{#                link.click();#}
+{#                document.body.removeChild(link);#}
+{#                window.URL.revokeObjectURL(url);#}
+{#                alert("✅ File retrieved successfully!");#}
+{#            })#}
+{#            .catch(error => {#}
+{#                console.error("❌ Retrieve file error:", error);#}
+{#                alert("Failed to retrieve file.");#}
+{#            });#}
+{#        }#}
+{##}
+{#        function updateFileList() {#}
+{#            const fileListElement = document.getElementById('blockchainFileList');#}
+{#            fileListElement.innerHTML = '';#}
+{#            if (fileList.length === 0) {#}
+{#                fileListElement.innerHTML = '<tr><td colspan="4" class="text-center text-gray-500 p-4">No files stored yet.</td></tr>';#}
+{#            } else {#}
+{#                fileList.forEach(file => {#}
+{#                    const row = document.createElement('tr');#}
+{#                    row.className = 'hover:bg-gray-100';#}
+{#                    row.innerHTML = `#}
+{#                        <td class="p-2 border border-gray-300 text-center">${file.id}</td>#}
+{#                        <td class="p-2 border border-gray-300">${file.file_name}</td>#}
+{#                        <td class="p-2 border border-gray-300">${new Date(file.timestamp * 1000).toLocaleString()}</td>#}
+{#                        <td class="p-2 border border-gray-300 text-center">#}
+{#                            <button class="bg-teal-500 hover:bg-teal-600 text-white px-3 py-1 rounded" onclick="retrieveFile(${file.id})">Retrieve</button>#}
+{#                        </td>#}
+{#                    `;#}
+{#                    fileListElement.appendChild(row);#}
+{#                });#}
+{#            }#}
+{#            document.getElementById('blockchain-error').style.display = 'none';#}
+{#        }#}
+{##}
+{#        $(document).ready(function() {#}
+{#            openTab('LiveStreaming');#}
+{#        });#}
+{#    </script>#}
+{#</body>#}
+{#</html>#}
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,6 +681,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <style>
+        /* Existing styles remain unchanged */
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
             margin: 0;
@@ -123,6 +798,16 @@
         form {
             margin: 20px 0;
         }
+        /* Additional styles for loading state */
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 384px;
+            color: #6b7280;
+            font-style: italic;
+        }
+        /* Existing Tailwind-like utility classes remain unchanged */
         .bg-white { background-color: #ffffff; }
         .p-6 { padding: 1.5rem; }
         .rounded-lg { border-radius: 0.5rem; }
@@ -194,7 +879,10 @@
             </form>
             <div id="upload-error-message" class="error-message">Error uploading video. Check console for details.</div>
             <h3>Processed Video Feed</h3>
-            <img id="video_feed" alt="Video Feed" onerror="handleVideoError()">
+            <div id="video_feed_container">
+                <img id="video_feed" alt="Video Feed" src="" onerror="handleVideoError()">
+                <div id="video_loading" class="loading">Loading video feed...</div>
+            </div>
             <h3>Real-Time GPS Data</h3>
             <p id="gps-data">📍 Waiting for GPS Data...</p>
             <h3>🚨 Critical Alerts</h3>
@@ -222,10 +910,20 @@
 
         <div id="EnvironmentAnalysis" class="tab-content">
             <h2>Environment Analysis</h2>
-            <p>This tab is reserved for environment analysis functionality. Content to be developed.</p>
+            <form id="environmentUploadForm" action="/upload" method="post" enctype="multipart/form-data">
+                <input type="file" id="environmentVideoFile" name="file" accept="video/*" required>
+                <button type="submit">Upload</button>
+            </form>
+            <div id="environment-upload-error-message" class="error-message">Error uploading video. Check console for details.</div>
+            <h3>Processed Video Feed</h3>
+            <div id="environment_video_feed_container">
+                <img id="environment_video_feed" alt="Environment Video Feed" src="" onerror="handleVideoError()">
+                <div id="environment_video_loading" class="loading">Loading video feed...</div>
+            </div>
         </div>
 
         <div id="BlockchainStore" class="tab-content">
+            <!-- Existing BlockchainStore content remains unchanged -->
             <h2>Blockchain Store</h2>
             <div class="bg-white p-6 rounded-lg shadow-md w-full max-w-3xl">
                 <h3 class="text-lg font-semibold mb-4">Upload Your File to Blockchain</h3>
@@ -284,7 +982,16 @@
 
         <div id="PedestrianAnalysis" class="tab-content">
             <h2>Pedestrian Analysis</h2>
-            <p>This tab is reserved for pedestrian detection and analysis functionality. Content to be developed.</p>
+            <form id="pedestrianUploadForm" action="/upload" method="post" enctype="multipart/form-data">
+                <input type="file" id="pedestrianVideoFile" name="file" accept="video/*" required>
+                <button type="submit">Upload</button>
+            </form>
+            <div id="pedestrian-upload-error-message" class="error-message">Error uploading video. Check console for details.</div>
+            <h3>Processed Video Feed</h3>
+            <div id="pedestrian_video_feed_container">
+                <img id="pedestrian_video_feed" alt="Pedestrian Video Feed" src="" onerror="handleVideoError()">
+                <div id="pedestrian_video_loading" class="loading">Loading video feed...</div>
+            </div>
         </div>
     </div>
 
@@ -307,16 +1014,51 @@
             $('#' + tabName).addClass('active');
             $('button:contains("' + tabName.replace(/([A-Z])/g, ' $1').trim() + '")').addClass('active');
 
+            // Initialize video feed based on tab
+            stopAllVideoFeeds();
             if (tabName === 'CriticalEventAnalysis') {
                 updateEventsManually();
+                initializeVideoFeed('/video_feed');
+            } else if (tabName === 'PedestrianAnalysis') {
+                initializeVideoFeed('/pedestrian_feed');
+            } else if (tabName === 'EnvironmentAnalysis') {
+                initializeVideoFeed('/environment_feed');
             } else if (tabName === 'BlockchainStore') {
                 fetchExportedFiles();
                 fetchFiles();
             }
         }
 
-        $("#uploadForm").submit(function(event) {
+        function stopAllVideoFeeds() {
+            $('#video_feed, #pedestrian_video_feed, #environment_video_feed').attr('src', '').hide();
+            $('#video_loading, #pedestrian_video_loading, #environment_video_loading').show();
+        }
+
+        function initializeVideoFeed(feedPrefix) {
+            const videoElement = $(`#${feedPrefix === '/video_feed' ? 'video_feed' : feedPrefix === '/pedestrian_feed' ? 'pedestrian_video_feed' : 'environment_video_feed'}`);
+            const loadingElement = $(`#${feedPrefix === '/video_feed' ? 'video_loading' : feedPrefix === '/pedestrian_feed' ? 'pedestrian_video_loading' : 'environment_video_loading'}`);
+            const errorElement = $(`#${feedPrefix === '/video_feed' ? 'upload-error-message' : feedPrefix === '/pedestrian_feed' ? 'pedestrian-upload-error-message' : 'environment-upload-error-message'}`);
+            const filename = $('#videoFile').val() || $('#pedestrianVideoFile').val() || $('#environmentVideoFile').val();
+            if (filename) {
+                const videoUrl = `${feedPrefix}/${filename.split('\\').pop()}?t=${Date.now()}`;
+                videoElement.attr('src', videoUrl).show();
+                loadingElement.hide();
+                videoElement.on('error', () => handleVideoError(errorElement));
+            } else {
+                loadingElement.text('Please upload a video first.').show();
+            }
+        }
+
+        $("#uploadForm, #pedestrianUploadForm, #environmentUploadForm").submit(function(event) {
             event.preventDefault();
+            const form = $(this);
+            const videoInput = form.find('input[type="file"]');
+            const errorMessage = form.siblings('.error-message');
+            const feedPrefix = form.attr('id') === 'uploadForm' ? '/video_feed' :
+                             form.attr('id') === 'pedestrianUploadForm' ? '/pedestrian_feed' : '/environment_feed';
+            const videoElement = $(`#${feedPrefix === '/video_feed' ? 'video_feed' : feedPrefix === '/pedestrian_feed' ? 'pedestrian_video_feed' : 'environment_video_feed'}`);
+            const loadingElement = $(`#${feedPrefix === '/video_feed' ? 'video_loading' : feedPrefix === '/pedestrian_feed' ? 'pedestrian_video_loading' : 'environment_video_loading'}`);
+
             var formData = new FormData(this);
             $.ajax({
                 url: "/upload",
@@ -327,25 +1069,28 @@
                 success: function(response) {
                     if (response.filename) {
                         var filename = response.filename;
-                        var videoUrl = `/video_feed/${filename}?t=${Date.now()}`;
-                        console.log("Setting video feed to:", videoUrl);
-                        $("#video_feed").attr("src", videoUrl).show();
-                        $("#upload-error-message").hide();
+                        const videoUrl = `${feedPrefix}/${filename}?t=${Date.now()}`;
+                        videoElement.attr('src', videoUrl).show();
+                        loadingElement.hide();
+                        errorMessage.hide();
+                        openTab(form.attr('id') === 'uploadForm' ? 'CriticalEventAnalysis' :
+                               form.attr('id') === 'pedestrianUploadForm' ? 'PedestrianAnalysis' : 'EnvironmentAnalysis');
                     } else {
                         console.error("Upload failed:", response.error);
-                        $("#upload-error-message").text("Upload failed: " + response.error).show();
+                        errorMessage.text("Upload failed: " + response.error).show();
                     }
                 },
                 error: function(xhr) {
                     console.error("Upload error:", xhr.responseText);
-                    $("#upload-error-message").text("Upload failed: " + xhr.responseText).show();
+                    errorMessage.text("Upload failed: " + xhr.responseText).show();
                 }
             });
         });
 
-        function handleVideoError() {
+        function handleVideoError(errorElement) {
             console.error("Video feed failed to load");
-            $("#upload-error-message").text("Video feed failed to load. Check console for details.").show();
+            errorElement.text("Video feed failed to load. Check console for details.").show();
+            $(this).hide();
         }
 
         function updateEventLog(event) {
@@ -666,6 +1411,8 @@
 
         $(document).ready(function() {
             openTab('LiveStreaming');
+            // Hide loading elements initially
+            $('.loading').hide();
         });
     </script>
 </body>
